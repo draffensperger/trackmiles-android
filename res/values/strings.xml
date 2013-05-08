@@ -1,8 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-
-    <string name="app_name">FinanceToolTracker</string>
-    <string name="action_settings">Settings</string>
-    <string name="hello_world">Hello world!</string>
-
+<string name="hello">FinanceTool Tracker</string>
+<string name="app_name">FinanceTool Tracker</string>
+<string name="start">Start</string>
+<string name="stop">Stop</string>
+<string name="locationBoxDefault">Click Show Data to see the data.</string>
+<string name="uploadDataCaption">Upload Data</string>
+<string name="showDataCaption">Show Data</string>
+<string name="action_settings">something here</string>
+<string name="service_name">LocationLoggerService</string>
+<string name="local_service_started">Finance Tool Tracker is running</string>
+<string name="local_service_stopped">Finance Tool Tracker has stopped</string>
 </resources>

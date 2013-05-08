@@ -1,4 +1,13 @@
 =======
+License for GPS Logger Derived code
+=======
+
+Code in this project is based on GPS Logger (https://code.google.com/p/gpslogger/), which
+was licensed under the Apache License 2.0
+http://www.apache.org/licenses/LICENSE-2.0
+
+
+=======
 License
 =======
 
