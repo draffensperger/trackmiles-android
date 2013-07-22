@@ -10,16 +10,6 @@
     android:paddingTop="@dimen/activity_vertical_margin"
     tools:context=".MainActivity" >
 
-    <TextView
-        android:id="@+id/locationBox"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_alignParentLeft="true"
-        android:layout_below="@+id/showDataButton"
-        android:layout_marginLeft="46dp"
-        android:layout_marginTop="15dp"
-        android:text="@string/locationBoxDefault" />
-
     <Button
         android:id="@+id/uploadDataButton"
         android:layout_width="wrap_content"
@@ -35,8 +25,25 @@
         android:layout_height="wrap_content"
         android:layout_alignLeft="@+id/locationBox"
         android:layout_alignParentTop="true"
-        android:layout_marginLeft="17dp"
-        android:layout_marginTop="42dp"
+        android:layout_marginTop="108dp"
         android:text="@string/showDataCaption" />
+
+    <TextView
+        android:id="@+id/locationBox"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/uploadDataButton"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="14dp"
+        android:text="@string/locationBoxDefault" />
+
+    <Button
+        android:id="@+id/loginButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_above="@+id/uploadDataButton"
+        android:layout_alignLeft="@+id/showDataButton"
+        android:layout_marginBottom="27dp"
+        android:text="@string/login_button_text" />
 
 </RelativeLayout>
