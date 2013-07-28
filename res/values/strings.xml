@@ -12,4 +12,9 @@
 <string name="local_service_started">Finance Tool Tracker is running</string>
 <string name="local_service_stopped">Finance Tool Tracker has stopped</string>
 <string name="login_button_text">Login</string>
+
+<string name="select_login_account">Choose Google Account</string>
+<string name="GOOGLE_ACCOUNT_TYPE">com.google</string>
+
+
 </resources>

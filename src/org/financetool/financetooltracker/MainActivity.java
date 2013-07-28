@@ -12,6 +12,7 @@ import android.os.Handler.Callback;
 import android.os.Message;
 import android.location.*;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
@@ -24,13 +25,18 @@ import android.accounts.OperationCanceledException;
 import android.app.Activity;
 import android.app.ActivityManager;
 import android.app.ActivityManager.RunningServiceInfo;
+import android.app.AlertDialog;
+import android.app.Dialog;
+import android.app.DialogFragment;
 import android.view.Menu;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
 
 public class MainActivity extends Activity {
-	private static final String DATABASE_NAME = "FTLOCATIONDB";
+	private static final String DATABASE_NAME = "FTLOCATIONDB";	
+	private static final int DIALOG_ACCOUNTS = 1;
+	private static final String GOOGLE_ACCOUNT_TYPE = "com.google";
 	
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -122,22 +128,44 @@ public class MainActivity extends Activity {
 		return true;
 	}
 	
-	private void doLogin() {
-		AccountManager am = AccountManager.get(this);
-    	Bundle options = new Bundle();
-
+	@SuppressWarnings("deprecation")
+	private void doLogin() {		    	
     	/*
     	 * 
     	 I need to pop something up so that the user can choose which google
     	 account to use.
     	 I need to use http://developer.android.com/reference/android/app/FragmentManager.html
     	 and http://developer.android.com/reference/android/app/DialogFragment.html
- protected Dialog onCreateDialog(int id) {
+  	
+    	 */
+        
+    	showDialog(DIALOG_ACCOUNTS);    	
+    	
+	}
+	
+	private void onAccountSelected(Account account) {
+		Bundle options = new Bundle();
+		AccountManager am = AccountManager.get(this);
+		AccountManagerFuture<Bundle> future = 
+		    	am.getAuthToken(
+		    		account,                     // Account retrieved using getAccountsByType()
+		    	    "oauth2:https://www.googleapis.com/auth/userinfo.email",            // Auth scope
+		    		//"View your email address",
+		    	    options,                        // Authenticator-specific options
+		    	    this,                           // Your activity
+		    	    new OnTokenAcquired(),          // Callback called when a token is successfully acquired
+		    	    null);
+	}
+	
+	 protected Dialog onCreateDialog(int id) {
         switch (id) {
             case DIALOG_ACCOUNTS:
+            	AccountManager accountManager = AccountManager.get(this);
                 AlertDialog.Builder builder = new AlertDialog.Builder(this);
-                builder.setTitle(R.string.select_google_account);
-                final Account[] accounts = accountManager.getAccountsByType(GOOGLE_TYPE);
+                builder.setTitle(R.string.select_login_account);
+                final Account[] accounts = 
+                		accountManager.getAccountsByType(GOOGLE_ACCOUNT_TYPE);
+                
                 final int size = accounts.length;
                 String[] names = new String[size];
                 for (int i = 0; i < size; i++) {
@@ -159,21 +187,8 @@ public class MainActivity extends Activity {
                 return builder.create();
         }
         return null;
-    }    	
-    	 */
-    	
-    	Account[] accounts = am.getAccountsByType("com.google");
-    	
-    	AccountManagerFuture<Bundle> future = 
-    	am.getAuthToken(
-    		accounts[0],                     // Account retrieved using getAccountsByType()
-    	    "Manage your tasks",            // Auth scope
-    	    options,                        // Authenticator-specific options
-    	    this,                           // Your activity
-    	    new OnTokenAcquired(),          // Callback called when a token is successfully acquired
-    	    null);
-	}
-	
+    }  
+
 	protected void onActivityResult(int requestCode, int resultCode, Intent data) {
 		if (resultCode == Activity.RESULT_OK) {
 			// The user updated their login info, so try the login again.
