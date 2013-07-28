@@ -11,6 +11,8 @@ import java.util.TimeZone;
 import java.util.concurrent.LinkedBlockingDeque;
 
 import org.financetool.financetooltracker.R;
+
+import android.accounts.Account;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
@@ -18,6 +20,7 @@ import android.database.sqlite.SQLiteDatabase;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
+import android.os.Binder;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.util.Log;
@@ -38,7 +41,17 @@ public class LocationLoggerService extends Service implements LocationListener {
 	private String lastLocationProvider;
 	private long timeBetweenLocations = 8000;
 	private long timeBetweenUploads = 60 * 60 * 1000;
+	
+	private Account authAccount = null;
+	private String authToken = null;
 
+	@Override
+	public int onStartCommand(Intent intent, int flags, int startId) {
+	    // We want this service to continue running until it is explicitly
+	    // stopped, so return sticky.
+	    return START_STICKY;
+	}
+	
 	@Override
 	public void onCreate() {
 		super.onCreate();				
@@ -49,8 +62,8 @@ public class LocationLoggerService extends Service implements LocationListener {
 		lm.requestLocationUpdates(lm.GPS_PROVIDER, 0, 5.0f, this);
 		lm.requestLocationUpdates(lm.NETWORK_PROVIDER, timeBetweenLocations, 5.0f, this);
     
-    keepWaitingForLocations = true;    
-    new SaveAndUploadThread().start();
+		keepWaitingForLocations = true;    
+		new SaveAndUploadThread().start();
 	}
 	
 	@Override
@@ -75,6 +88,20 @@ public class LocationLoggerService extends Service implements LocationListener {
 	public void onProviderEnabled(String provider) {
 	}
 	public void onStatusChanged(String provider, int status, Bundle extras) {
+	}
+			
+	private final IBinder binder = new LocalBinder();
+	
+	public class LocalBinder extends Binder {
+		public void setAuthInfo(Account account, String token) {
+			LocationLoggerService.this.authAccount = account;
+			LocationLoggerService.this.authToken = token;
+		}
+    }
+	
+	@Override
+	public IBinder onBind(Intent intent) {
+		return binder;
 	}
 	
 	private class SaveAndUploadThread extends Thread {
@@ -111,7 +138,10 @@ public class LocationLoggerService extends Service implements LocationListener {
 		private void uploadSavedLocations() {
 			// TODO: Implement the actual upload code, delete from the SQLite DB.
 			
-			// Only upload if in Wifi
+			// TODO: Only upload if in Wifi?
+			
+			
+			
 			lastUploadedTime = System.currentTimeMillis();
 		}
 		
@@ -147,10 +177,5 @@ public class LocationLoggerService extends Service implements LocationListener {
 				Log.e("Error saving location for FinanceTool Tracker: ", e.toString());
 			}
 		}
-	}
-
-	@Override
-	public IBinder onBind(Intent arg0) {
-		return null;
 	}
 }

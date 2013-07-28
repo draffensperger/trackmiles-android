@@ -9,11 +9,14 @@ import java.util.List;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Handler.Callback;
+import android.os.IBinder;
 import android.os.Message;
 import android.location.*;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.ServiceConnection;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.accounts.Account;
@@ -33,47 +36,95 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
 
+import com.google.android.gms.auth.*;
+import com.google.android.gms.common.GooglePlayServicesUtil;
+
 public class MainActivity extends Activity {
 	private static final String DATABASE_NAME = "FTLOCATIONDB";	
-	private static final int DIALOG_ACCOUNTS = 1;
-	private static final String GOOGLE_ACCOUNT_TYPE = "com.google";
+	private static final int AUTH_REQUEST_CODE = 1;
+	private LocationLoggerService.LocalBinder locationLoggerBinder = null;
+	private ServiceConnection locationLoggerServiceConn = null;
 	
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
-		super.onCreate(savedInstanceState);		
-    setContentView(R.layout.activity_main);
-    
-    final Button uploadButton = (Button) findViewById(R.id.uploadDataButton);
-    uploadButton.setOnClickListener(new View.OnClickListener() {
-        public void onClick(View v) {
-        	
-        	
-        }
-    });
-    
-    final Button loginButton = (Button) findViewById(R.id.loginButton);
-    loginButton.setOnClickListener(new View.OnClickListener() {
-        public void onClick(View v) {        	
-        	doLogin();
-        }
-    });
-    
-    
-    final Button showDataButton = (Button) findViewById(R.id.showDataButton);
-    showDataButton.setOnClickListener(new View.OnClickListener() {
-        public void onClick(View v) {
-        	String data = getLocationDataCSV();
-        	final TextView locationBox = (TextView) findViewById(R.id.locationBox);
-        	locationBox.setText(data);
-        }
-    });
-    
-    if (!isServiceRunning(LocationLoggerService.class.getCanonicalName())) {
-      Intent startServiceIntent = new Intent(this, 
-      		LocationLoggerService.class);
-      startService(startServiceIntent);
-    }
+		super.onCreate(savedInstanceState);
+		setContentView(R.layout.activity_main);
+	    
+		final Button uploadButton = (Button) findViewById(R.id.uploadDataButton);
+		uploadButton.setOnClickListener(new View.OnClickListener() {
+	        public void onClick(View v) {
+	        	
+	        	
+	        }
+	    });
+	    
+	    final Button loginButton = (Button) findViewById(R.id.loginButton);
+	    loginButton.setOnClickListener(new View.OnClickListener() {
+	        public void onClick(View v) {        	
+	        	startActivityForResult(
+	        			new Intent(getBaseContext(), AuthActivity.class),
+	        			AUTH_REQUEST_CODE);
+	        }
+	    });
+	    
+	    
+	    final Button showDataButton = (Button) findViewById(R.id.showDataButton);
+	    showDataButton.setOnClickListener(new View.OnClickListener() {
+	        public void onClick(View v) {
+	        	String data = getLocationDataCSV();
+	        	final TextView locationBox = (TextView) findViewById(R.id.locationBox);
+	        	locationBox.setText(data);
+	        }
+	    });
+	    	
+	    startLocationLogger();
 	}
+	
+	private void startLocationLogger() {
+		Intent serviceIntent = new Intent(this, LocationLoggerService.class);
+		
+		if (!isServiceRunning(LocationLoggerService.class.getCanonicalName())) {
+	      startService(serviceIntent);
+	    }
+	    
+		locationLoggerServiceConn = new ServiceConnection() {
+			@Override
+			public void onServiceConnected(ComponentName className, 
+					IBinder service) {
+				
+				locationLoggerBinder = 
+						((LocationLoggerService.LocalBinder)service);
+			}
+			public void onServiceDisconnected(ComponentName className) {
+				locationLoggerBinder = null;
+			}			
+		};
+		
+		bindService(serviceIntent, locationLoggerServiceConn, 0);
+	}
+	
+	@Override
+	protected void onDestroy() {
+	    super.onDestroy();
+	    if (locationLoggerServiceConn != null) {
+	    	unbindService(locationLoggerServiceConn);
+	    }
+	}
+	
+	protected void onActivityResult(final int requestCode, final int resultCode,
+	         final Intent data) {
+	     if (requestCode == AUTH_REQUEST_CODE && resultCode == RESULT_OK) {	    	 
+	         if (locationLoggerBinder != null) {
+	        	 locationLoggerBinder.setAuthInfo(
+	        			 new Account(data.getStringExtra("accountName"),
+	        					 	 data.getStringExtra("accountType")),
+	        			 data.getStringExtra("authToken"));
+	         } else {
+	        	 // TODO: Handle situation where for some reason the service
+	        	 // hasn't been started yet or is null.
+	         }
+	     }
+	 }
 	
 	private String getLocationDataCSV() {
 		StringBuffer buf = new StringBuffer();
@@ -113,12 +164,12 @@ public class MainActivity extends Activity {
 	
 	private boolean isServiceRunning(String className) {
 		ActivityManager manager = (ActivityManager) getSystemService(ACTIVITY_SERVICE);
-    for (RunningServiceInfo service : manager.getRunningServices(Integer.MAX_VALUE)) {
-        if (className.equals(service.service.getClassName())) {
-            return true;
-        }
-    }
-    return false;
+	    for (RunningServiceInfo service : manager.getRunningServices(Integer.MAX_VALUE)) {
+	        if (className.equals(service.service.getClassName())) {
+	            return true;
+	        }
+	    }
+	    return false;
 	}
 
 	@Override
@@ -126,164 +177,5 @@ public class MainActivity extends Activity {
 		// Inflate the menu; this adds items to the action bar if it is present.
 		getMenuInflater().inflate(R.menu.main, menu);
 		return true;
-	}
-	
-	@SuppressWarnings("deprecation")
-	private void doLogin() {		    	
-    	/*
-    	 * 
-    	 I need to pop something up so that the user can choose which google
-    	 account to use.
-    	 I need to use http://developer.android.com/reference/android/app/FragmentManager.html
-    	 and http://developer.android.com/reference/android/app/DialogFragment.html
-  	
-    	 */
-        
-    	showDialog(DIALOG_ACCOUNTS);    	
-    	
-	}
-	
-	private void onAccountSelected(Account account) {
-		Bundle options = new Bundle();
-		AccountManager am = AccountManager.get(this);
-		AccountManagerFuture<Bundle> future = 
-		    	am.getAuthToken(
-		    		account,                     // Account retrieved using getAccountsByType()
-		    	    "oauth2:https://www.googleapis.com/auth/userinfo.email",            // Auth scope
-		    		//"View your email address",
-		    	    options,                        // Authenticator-specific options
-		    	    this,                           // Your activity
-		    	    new OnTokenAcquired(),          // Callback called when a token is successfully acquired
-		    	    null);
-	}
-	
-	 protected Dialog onCreateDialog(int id) {
-        switch (id) {
-            case DIALOG_ACCOUNTS:
-            	AccountManager accountManager = AccountManager.get(this);
-                AlertDialog.Builder builder = new AlertDialog.Builder(this);
-                builder.setTitle(R.string.select_login_account);
-                final Account[] accounts = 
-                		accountManager.getAccountsByType(GOOGLE_ACCOUNT_TYPE);
-                
-                final int size = accounts.length;
-                String[] names = new String[size];
-                for (int i = 0; i < size; i++) {
-                    names[i] = accounts[i].name;
-                }
-                builder.setItems(names, new DialogInterface.OnClickListener() {
-                    public void onClick(DialogInterface dialog, int which) {
-                        onAccountSelected(accounts[which]);
-                        dialog.dismiss();
-                    }
-                });
-
-                builder.setOnCancelListener(new DialogInterface.OnCancelListener() {
-                    @Override
-                    public void onCancel(DialogInterface dialog) {
-                        finish();
-                    }
-                });
-                return builder.create();
-        }
-        return null;
-    }  
-
-	protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-		if (resultCode == Activity.RESULT_OK) {
-			// The user updated their login info, so try the login again.
-			doLogin();
-		}
-	}
-	
-	private class OnTokenError implements Callback {
-	    public void run(AccountManagerFuture<Bundle> result) {
-	        // Get the result of the operation from the AccountManagerFuture.
-	        try {
-				Bundle bundle = result.getResult();
-			} catch (OperationCanceledException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			} catch (AuthenticatorException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			} catch (IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}	     
-	    }
-
-		@Override
-		public boolean handleMessage(Message msg) {
-			// TODO Auto-generated method stub
-			return false;
-		}
-	}
-	
-	private class OnTokenAcquired implements AccountManagerCallback<Bundle> {
-	    @Override
-	    public void run(AccountManagerFuture<Bundle> result) {
-	        // Get the result of the operation from the AccountManagerFuture.
-	        Bundle bundle = null;
-			try {
-				bundle = result.getResult();
-			} catch (OperationCanceledException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			} catch (AuthenticatorException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			} catch (IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-	        			
-			
-	        Intent launch = (Intent) bundle.get(AccountManager.KEY_INTENT);
-	        if (launch != null) {
-	            startActivityForResult(launch, 0);
-	            return;
-	        }
-	    
-	        // The token is a named value in the bundle. The name of the value
-	        // is stored in the constant AccountManager.KEY_AUTHTOKEN.
-	        String token = bundle.getString(AccountManager.KEY_AUTHTOKEN);
-	        
-	        String your_api_key = "";
-	        String your_client_secret = "";
-	        String your_client_id = "";
-	        
-	        URL url = null;
-			try {
-				url = new URL("https://www.googleapis.com/tasks/v1/users/@me/lists?key=" + your_api_key);
-			} catch (MalformedURLException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-	        HttpURLConnection conn = null;
-			try {
-				conn = (HttpURLConnection) url.openConnection();
-			} catch (IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}	        
-			conn.addRequestProperty("client_id", your_client_id);
-	        conn.addRequestProperty("client_secret", your_client_secret);
-	        conn.setRequestProperty("Authorization", "OAuth " + token);
-	        int code = -1;
-			try {
-				code = conn.getResponseCode();
-			} catch (IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-	        
-	        if (code == 401) {
-	        	// Token expired
-	        	AccountManager am = AccountManager.get(MainActivity.this);
-	        	am.invalidateAuthToken("com.google", token);
-	        }
-	        
-	    }
-	}
+	}	
 }
