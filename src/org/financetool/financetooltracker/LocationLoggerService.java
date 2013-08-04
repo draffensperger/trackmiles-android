@@ -1,5 +1,6 @@
 package org.financetool.financetooltracker;
 
+import java.io.IOException;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayDeque;
@@ -10,12 +11,20 @@ import java.util.List;
 import java.util.TimeZone;
 import java.util.concurrent.LinkedBlockingDeque;
 
+import org.apache.http.HttpResponse;
+import org.apache.http.client.ClientProtocolException;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.entity.ByteArrayEntity;
+import org.apache.http.impl.client.DefaultHttpClient;
 import org.financetool.financetooltracker.R;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 import android.accounts.Account;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.location.Location;
 import android.location.LocationListener;
@@ -27,7 +36,9 @@ import android.util.Log;
 import android.widget.TextView;
 
 public class LocationLoggerService extends Service implements LocationListener {
-	public static final String DATABASE_NAME = "FTLOCATIONDB";
+	private static final String DATABASE_NAME = "FTLOCATIONDB";
+	private static final String LOCATION_UPLOAD_URL 
+		= "http://10.0.0.2:3000/api/v1/locations/bulk_create";
 	private final DateFormat timestampFormat = new SimpleDateFormat("yyyyMMddHHmmss");
 	
 	private LocationManager lm;
@@ -39,8 +50,11 @@ public class LocationLoggerService extends Service implements LocationListener {
 	
 	private long lastSavedLocationTime = 0;
 	private String lastLocationProvider;
-	private long timeBetweenLocations = 8000;
-	private long timeBetweenUploads = 60 * 60 * 1000;
+	//private long timeBetweenLocations = 8000;
+	//private long timeBetweenUploads = 60 * 60 * 1000;
+	private long timeBetweenLocations = 1000;
+	private long timeBetweenSaves = 1000;
+	private long timeBetweenUploads = 1000;
 	
 	private Account authAccount = null;
 	private String authToken = null;
@@ -127,7 +141,12 @@ public class LocationLoggerService extends Service implements LocationListener {
 					uploadSavedLocations();
 				}
 				
-				yield();
+				//yield();
+				try {
+					sleep(timeBetweenSaves);
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
 			}
 			saveLocationsFromQueue();
 			uploadSavedLocations();
@@ -137,12 +156,69 @@ public class LocationLoggerService extends Service implements LocationListener {
 		
 		private void uploadSavedLocations() {
 			// TODO: Implement the actual upload code, delete from the SQLite DB.
+			// TODO: Only upload if in Wifi?						
 			
-			// TODO: Only upload if in Wifi?
+			if (authToken != null) {								
+				try {
+					JSONObject json = new JSONObject();
+					json.put("google_token", authToken);
+					json.put("locations", getSavedLocationsJSON());
+					lastUploadedTime = System.currentTimeMillis();
+					
+					DefaultHttpClient client = new DefaultHttpClient();
+					HttpPost post = new HttpPost(LOCATION_UPLOAD_URL);
+					
+					post.setEntity(new ByteArrayEntity(json.toString().getBytes("UTF8")));
+					post.setHeader("Content-Type", "application/json");
+					HttpResponse response = client.execute(post);	
+					
+					
+				} catch (JSONException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				} catch (ClientProtocolException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}				
+			}
+		}
+		
+		private JSONObject getSavedLocationsJSON() {
+			JSONObject json = new JSONObject();	
 			
-			
-			
-			lastUploadedTime = System.currentTimeMillis();
+			try {
+				SQLiteDatabase db;
+				db = openOrCreateDatabase(DATABASE_NAME, SQLiteDatabase.OPEN_READWRITE, null);
+				Cursor c = db.rawQuery(
+						"SELECT GMTTIMESTAMP,PROVIDER,LATITUDE,LONGITUDE,ALTITUDE,ACCURACY,"
+							+ "SPEED,BEARING FROM LOCATIONS ORDER BY GMTTIMESTAMP DESC", null);
+				if (c != null) {
+					while (c.moveToNext()) {
+						json.put("recorded_time", c.getString(0));
+						json.put("provider", c.getString(1));						
+						addDoubleIfNotNull(c, 2, "latitude", json);
+						addDoubleIfNotNull(c, 3, "longitude", json);
+						addDoubleIfNotNull(c, 4, "altitude", json);
+						addDoubleIfNotNull(c, 5, "accuracy", json);
+						addDoubleIfNotNull(c, 6, "speed", json);
+						addDoubleIfNotNull(c, 7, "bearing", json);												
+					}
+					c.close();
+				}
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+			return json;
+		}
+		
+		private void addDoubleIfNotNull(Cursor c, int column, 
+				String name, JSONObject json) throws JSONException {
+			if (!c.isNull(column)) {
+				json.put(name, c.getDouble(column));
+			}
 		}
 		
 		private void saveLocationsFromQueue() {
@@ -156,23 +232,23 @@ public class LocationLoggerService extends Service implements LocationListener {
 		
 		private void saveLocation(Location loc) {
 			try {
-					GregorianCalendar greg = new GregorianCalendar();
-					TimeZone tz = greg.getTimeZone();
-					int offset = tz.getOffset(System.currentTimeMillis());
-					greg.add(Calendar.SECOND, (offset/1000) * -1);
-					StringBuffer queryBuf = new StringBuffer();
-					queryBuf.append("INSERT INTO LOCATIONS " +
-							"(GMTTIMESTAMP,PROVIDER,LATITUDE,LONGITUDE,ALTITUDE,ACCURACY," +
-							"SPEED,BEARING) VALUES (" +
-							"'"+timestampFormat.format(greg.getTime())+"',"+
-							"'"+loc.getProvider()+"',"+
-							loc.getLatitude()+","+
-							loc.getLongitude()+","+
-							(loc.hasAltitude() ? loc.getAltitude() : "NULL")+","+
-							(loc.hasAccuracy() ? loc.getAccuracy() : "NULL")+","+
-							(loc.hasSpeed() ? loc.getSpeed() : "NULL")+","+
-							(loc.hasBearing() ? loc.getBearing() : "NULL")+");");				
-					db.execSQL(queryBuf.toString());
+				GregorianCalendar greg = new GregorianCalendar();
+				TimeZone tz = greg.getTimeZone();
+				int offset = tz.getOffset(System.currentTimeMillis());
+				greg.add(Calendar.SECOND, (offset/1000) * -1);
+				StringBuffer queryBuf = new StringBuffer();
+				queryBuf.append("INSERT INTO LOCATIONS " +
+						"(GMTTIMESTAMP,PROVIDER,LATITUDE,LONGITUDE,ALTITUDE,ACCURACY," +
+						"SPEED,BEARING) VALUES (" +
+						"'"+timestampFormat.format(greg.getTime())+"',"+
+						"'"+loc.getProvider()+"',"+
+						loc.getLatitude()+","+
+						loc.getLongitude()+","+
+						(loc.hasAltitude() ? loc.getAltitude() : "NULL")+","+
+						(loc.hasAccuracy() ? loc.getAccuracy() : "NULL")+","+
+						(loc.hasSpeed() ? loc.getSpeed() : "NULL")+","+
+						(loc.hasBearing() ? loc.getBearing() : "NULL")+");");				
+				db.execSQL(queryBuf.toString());
 			} catch (Exception e) {
 				Log.e("Error saving location for FinanceTool Tracker: ", e.toString());
 			}
