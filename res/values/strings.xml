@@ -8,16 +8,16 @@
 <string name="ui_connected_desc">Tap to connect with your Google Account (required).</string>
 
 <string name="ui_track_location_label">Track location</string>
-<string name="ui_track_location_desc">Save locations in the cloud to track trips (needed, but uncheck to pause).</string>
+<string name="ui_track_location_desc">Record locations in the cloud to track trips (uncheck to pause tracking).</string>
 
 <string name="ui_use_gps_label">Use GPS</string>
-<string name="ui_use_gps_desc">Use GPS for more accurate location, but uses more battery.</string>
+<string name="ui_use_gps_desc">Uses GPS when it\'s switched on, which is more accurate but uses more battery.</string>
 
 <string name="last_uploaded_default">Synced locations at [never]</string>
 
 <string name="ui_sync_button_label">Sync Now</string>
 
-<string name="ui_info_label">Records locations for the <a href="https://trackmiles.herokuapp.com">Track Miles Site</a></string>
+<string name="ui_info_label"><a href="https://trackmiles.herokuapp.com">Track Miles Site</a> location recorder</string>
 
 <string name="start">Start</string>
 <string name="stop">Stop</string>
