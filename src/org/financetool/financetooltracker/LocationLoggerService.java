@@ -42,7 +42,7 @@ import android.widget.TextView;
 public class LocationLoggerService extends Service implements LocationListener {
 	private static final String DATABASE_NAME = "FTLOCATIONDB";
 	private static final String LOCATION_UPLOAD_URL 
-		= "http://10.0.0.2:3000/api/v1/locations/bulk_create";
+		= "https://trackmiles.herokuapp.com/api/v1/locations/bulk_create";
 	private final DateFormat timestampFormat = new SimpleDateFormat("yyyyMMddHHmmss");
 	
 	private LocationManager lm;
