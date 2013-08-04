@@ -11,12 +11,16 @@ import java.util.List;
 import java.util.TimeZone;
 import java.util.concurrent.LinkedBlockingDeque;
 
+import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
+import org.apache.http.HttpStatus;
 import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.impl.client.DefaultHttpClient;
+import org.apache.http.util.EntityUtils;
 import org.financetool.financetooltracker.R;
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -160,19 +164,33 @@ public class LocationLoggerService extends Service implements LocationListener {
 			
 			if (authToken != null) {								
 				try {
-					JSONObject json = new JSONObject();
-					json.put("google_token", authToken);
-					json.put("locations", getSavedLocationsJSON());
-					lastUploadedTime = System.currentTimeMillis();
-					
-					DefaultHttpClient client = new DefaultHttpClient();
-					HttpPost post = new HttpPost(LOCATION_UPLOAD_URL);
-					
-					post.setEntity(new ByteArrayEntity(json.toString().getBytes("UTF8")));
-					post.setHeader("Content-Type", "application/json");
-					HttpResponse response = client.execute(post);	
-					
-					
+					JSONArray locsJSON = getSavedLocationsJSON();
+					if (locsJSON.length() > 0) {					
+						JSONObject json = new JSONObject();
+						json.put("google_token", authToken);					
+						json.put("locations", locsJSON);
+						lastUploadedTime = System.currentTimeMillis();
+						
+						DefaultHttpClient client = new DefaultHttpClient();
+						HttpPost post = new HttpPost(LOCATION_UPLOAD_URL);
+						
+						post.setEntity(new ByteArrayEntity(json.toString().getBytes("UTF8")));
+						post.setHeader("Content-Type", "application/json");
+						HttpResponse response = client.execute(post);	
+						int code = response.getStatusLine().getStatusCode();
+						if (code == HttpStatus.SC_OK) {						
+							String result = EntityUtils.toString(response.getEntity());						
+							JSONObject jsonResult = new JSONObject(result);
+							long numCreated = jsonResult.getLong("num_created_locations");
+							if (numCreated == locsJSON.length()) {
+								clearSavedLocations();
+							}
+						} else if (code == HttpStatus.SC_UNAUTHORIZED) {
+							// TODO: Try to get the auth token reset
+						} else {
+							// TODO: Do some error logging of other messages
+						}
+					}					
 				} catch (JSONException e) {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
@@ -186,8 +204,17 @@ public class LocationLoggerService extends Service implements LocationListener {
 			}
 		}
 		
-		private JSONObject getSavedLocationsJSON() {
-			JSONObject json = new JSONObject();	
+		private void clearSavedLocations() {
+			try {
+				db = openOrCreateDatabase(DATABASE_NAME, SQLiteDatabase.OPEN_READWRITE, null);			
+				db.execSQL("DELETE FROM LOCATIONS");
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+		}
+		
+		private JSONArray getSavedLocationsJSON() {			
+			JSONArray locations = new JSONArray();
 			
 			try {
 				SQLiteDatabase db;
@@ -197,6 +224,7 @@ public class LocationLoggerService extends Service implements LocationListener {
 							+ "SPEED,BEARING FROM LOCATIONS ORDER BY GMTTIMESTAMP DESC", null);
 				if (c != null) {
 					while (c.moveToNext()) {
+						JSONObject json = new JSONObject();
 						json.put("recorded_time", c.getString(0));
 						json.put("provider", c.getString(1));						
 						addDoubleIfNotNull(c, 2, "latitude", json);
@@ -204,14 +232,15 @@ public class LocationLoggerService extends Service implements LocationListener {
 						addDoubleIfNotNull(c, 4, "altitude", json);
 						addDoubleIfNotNull(c, 5, "accuracy", json);
 						addDoubleIfNotNull(c, 6, "speed", json);
-						addDoubleIfNotNull(c, 7, "bearing", json);												
+						addDoubleIfNotNull(c, 7, "bearing", json);
+						locations.put(json);
 					}
 					c.close();
 				}
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
-			return json;
+			return locations;
 		}
 		
 		private void addDoubleIfNotNull(Cursor c, int column, 
