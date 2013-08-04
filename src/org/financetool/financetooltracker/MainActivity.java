@@ -11,6 +11,7 @@ import android.os.Handler;
 import android.os.Handler.Callback;
 import android.os.IBinder;
 import android.os.Message;
+import android.preference.PreferenceActivity;
 import android.location.*;
 import android.content.ComponentName;
 import android.content.Context;
@@ -31,6 +32,7 @@ import android.app.ActivityManager.RunningServiceInfo;
 import android.app.AlertDialog;
 import android.app.Dialog;
 import android.app.DialogFragment;
+import android.text.method.LinkMovementMethod;
 import android.view.Menu;
 import android.view.View;
 import android.widget.Button;
@@ -39,7 +41,7 @@ import android.widget.TextView;
 import com.google.android.gms.auth.*;
 import com.google.android.gms.common.GooglePlayServicesUtil;
 
-public class MainActivity extends Activity {
+public class MainActivity extends PreferenceActivity {
 	private static final String DATABASE_NAME = "FTLOCATIONDB";	
 	private static final int AUTH_REQUEST_CODE = 1;
 	private LocationLoggerService.LocalBinder locationLoggerBinder = null;
@@ -50,32 +52,26 @@ public class MainActivity extends Activity {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_main);
 	    
-		final Button uploadButton = (Button) findViewById(R.id.uploadDataButton);
+		final Button uploadButton = (Button) findViewById(R.id.sync_button);
 		uploadButton.setOnClickListener(new View.OnClickListener() {
 	        public void onClick(View v) {
 	        	
 	        	
 	        }
 	    });
-	    
-	    final Button loginButton = (Button) findViewById(R.id.loginButton);
-	    loginButton.setOnClickListener(new View.OnClickListener() {
-	        public void onClick(View v) {        	
-	        	startActivityForResult(
-	        			new Intent(getBaseContext(), AuthActivity.class),
+		
+		final TextView info_label = (TextView) findViewById(R.id.info_label);
+		info_label.setMovementMethod(LinkMovementMethod.getInstance());
+		
+		addPreferencesFromResource(R.xml.preferences);
+		
+		/*
+		 * 
+		 * 
+		For login:
+		new Intent(getBaseContext(), AuthActivity.class),
 	        			AUTH_REQUEST_CODE);
-	        }
-	    });
-	    
-	    
-	    final Button showDataButton = (Button) findViewById(R.id.showDataButton);
-	    showDataButton.setOnClickListener(new View.OnClickListener() {
-	        public void onClick(View v) {
-	        	String data = getLocationDataCSV();
-	        	final TextView locationBox = (TextView) findViewById(R.id.locationBox);
-	        	locationBox.setText(data);
-	        }
-	    });
+		 */	   
 	    	
 	    startLocationLogger();
 	}

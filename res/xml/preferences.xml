@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+    
+   <CheckBoxPreference
+       android:key="connected"
+       android:title="@string/ui_connected_label"
+       android:summary="@string/ui_connected_desc"
+       android:persistent="true"
+       android:defaultValue="false"/>
+    
+    <CheckBoxPreference
+        android:key="track_location"
+        android:title="@string/ui_track_location_label"
+        android:summary="@string/ui_track_location_desc"
+        android:defaultValue="true" />
+    
+    <CheckBoxPreference
+        android:key="use_gps"
+        android:title="@string/ui_use_gps_label"
+        android:summary="@string/ui_use_gps_desc"
+        android:defaultValue="true" />
+    
+</PreferenceScreen>
