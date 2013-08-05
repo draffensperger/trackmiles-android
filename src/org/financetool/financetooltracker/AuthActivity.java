@@ -23,15 +23,17 @@ import android.app.AlertDialog;
 import android.app.Dialog;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.preference.PreferenceManager;
 
 public class AuthActivity extends Activity {
-	private static final String GOOGLE_ACCOUNT_TYPE = "com.google";
 	private static final int PICK_ACCOUNT_REQUEST = 1;
 	private static final int AUTH_ERROR_DIALOG = 2;
 	private static final int AUTH_RECOVERY = 2;
 	private static final int RESULT_AUTH_FAILED = RESULT_FIRST_USER;
+	private PreferenceUtil prefs;
 	
 	public static final String AUTH_SCOPE = 
 			"oauth2:https://www.googleapis.com/auth/userinfo.email " + 
@@ -44,13 +46,17 @@ public class AuthActivity extends Activity {
 		// TODO: Show which account they already have logged in and default
 		// it to that one. Otherwise default it to the first account in the list.
 		// Maybe even just select the cru.org account or maybe see if there is
-		// only one Google Account and use that one.
+		// only one Google Account and use that one.			
+						
+		prefs = new PreferenceUtil(getApplicationContext());
 		
 		Intent intent = AccountPicker.newChooseAccountIntent(
-				null, null, new String[]{GOOGLE_ACCOUNT_TYPE},
-			    false, null, null, null, null);
+				prefs.getAuthAccountOrDefault(), null, 
+				new String[]{GoogleAuthUtil.GOOGLE_ACCOUNT_TYPE},
+			    false, getString(R.string.ui_account_picker_description), 
+			    null, null, null);
 		startActivityForResult(intent, PICK_ACCOUNT_REQUEST);	
-	}
+	}		
 	
 	protected void onActivityResult(final int requestCode, final int resultCode,
 	         final Intent data) {
@@ -108,10 +114,13 @@ public class AuthActivity extends Activity {
 			dlgAlert.setCancelable(true);
 			dlgAlert.create().show();
 			
+			String accountType = GoogleAuthUtil.GOOGLE_ACCOUNT_TYPE;
+			prefs.setAuthAccount(new Account(accountName, accountType));
+			
 			Intent returnIntent = new Intent();
 			
 			if (authToken != null) {
-				returnIntent.putExtra("accountType", GOOGLE_ACCOUNT_TYPE);
+				returnIntent.putExtra("accountType", accountType);
 				returnIntent.putExtra("accountName", accountName);
 				returnIntent.putExtra("authToken", authToken);
 				setResult(RESULT_OK, returnIntent);

@@ -6,12 +6,16 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.List;
 
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Handler.Callback;
 import android.os.IBinder;
 import android.os.Message;
+import android.preference.CheckBoxPreference;
+import android.preference.Preference;
 import android.preference.PreferenceActivity;
+import android.preference.Preference.OnPreferenceChangeListener;
 import android.location.*;
 import android.content.ComponentName;
 import android.content.Context;
@@ -47,6 +51,16 @@ public class MainActivity extends PreferenceActivity {
 	private LocationLoggerService.LocalBinder locationLoggerBinder = null;
 	private ServiceConnection locationLoggerServiceConn = null;
 	
+	private static final String GOOGLE_ACCOUNT_TYPE = "com.google";
+	private static final int PICK_ACCOUNT_REQUEST = 1;
+	private static final int AUTH_ERROR_DIALOG = 2;
+	private static final int AUTH_RECOVERY = 2;
+	private static final int RESULT_AUTH_FAILED = RESULT_FIRST_USER;
+	
+	public static final String AUTH_SCOPE = 
+			"oauth2:https://www.googleapis.com/auth/userinfo.email " + 
+			"https://www.googleapis.com/auth/userinfo.profile ";
+	
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
@@ -64,6 +78,21 @@ public class MainActivity extends PreferenceActivity {
 		info_label.setMovementMethod(LinkMovementMethod.getInstance());
 		
 		addPreferencesFromResource(R.xml.preferences);
+		
+		CheckBoxPreference connected = 
+				(CheckBoxPreference) findPreference("connected");
+		connected.setOnPreferenceChangeListener(new OnPreferenceChangeListener() {
+            public boolean onPreferenceChange(Preference preference, Object change) {
+                if (((Boolean) change).booleanValue()) {
+                	Intent authIntent 
+                		= new Intent(getBaseContext(), AuthActivity.class); 
+                	startActivityForResult(authIntent, AUTH_REQUEST_CODE);
+                } else {
+                    // TODO: Show warning dialog
+                }
+                return false;
+            }
+        });
 		
 		/*
 		 * 
