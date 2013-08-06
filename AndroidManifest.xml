@@ -28,7 +28,7 @@
 		    </intent-filter>  
 		</receiver>
         
-        <service android:name="org.financetool.financetooltracker.LocationLoggerService">
+        <service android:name="org.financetool.financetooltracker.TrackerService">
             
         </service>
         

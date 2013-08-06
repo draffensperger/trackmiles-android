@@ -6,6 +6,7 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.List;
 
+import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -43,158 +44,141 @@ import android.widget.Button;
 import android.widget.TextView;
 
 import com.google.android.gms.auth.*;
+import com.google.android.gms.common.AccountPicker;
 import com.google.android.gms.common.GooglePlayServicesUtil;
 
 public class MainActivity extends PreferenceActivity {
-	private static final String DATABASE_NAME = "FTLOCATIONDB";	
-	private static final int AUTH_REQUEST_CODE = 1;
-	private LocationLoggerService.LocalBinder locationLoggerBinder = null;
-	private ServiceConnection locationLoggerServiceConn = null;
-	
-	private static final String GOOGLE_ACCOUNT_TYPE = "com.google";
-	private static final int PICK_ACCOUNT_REQUEST = 1;
+	private TrackerService.LocalBinder trackerBinder = null;
+	private ServiceConnection trackerConn = null;
+	private PreferenceUtil prefs;
+	private CheckBoxPreference connected;
+
+	private static final int CHOOSE_ACCOUNT_REQUEST = 1;
 	private static final int AUTH_ERROR_DIALOG = 2;
-	private static final int AUTH_RECOVERY = 2;
-	private static final int RESULT_AUTH_FAILED = RESULT_FIRST_USER;
-	
-	public static final String AUTH_SCOPE = 
-			"oauth2:https://www.googleapis.com/auth/userinfo.email " + 
-			"https://www.googleapis.com/auth/userinfo.profile ";
-	
+	private static final int AUTH_RECOVERY = 3;	
+
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_main);
-	    
-		final Button uploadButton = (Button) findViewById(R.id.sync_button);
-		uploadButton.setOnClickListener(new View.OnClickListener() {
-	        public void onClick(View v) {
-	        	
-	        	
-	        }
-	    });
-		
+
+		prefs = new PreferenceUtil(getApplicationContext());
+
 		final TextView info_label = (TextView) findViewById(R.id.info_label);
 		info_label.setMovementMethod(LinkMovementMethod.getInstance());
-		
+
+		final Button uploadButton = (Button) findViewById(R.id.sync_button);
+		uploadButton.setOnClickListener(new View.OnClickListener() {
+			public void onClick(View v) {
+				// TODO: Call the service binder to tell it to upload
+			}
+		});
+
 		addPreferencesFromResource(R.xml.preferences);
-		
-		CheckBoxPreference connected = 
-				(CheckBoxPreference) findPreference("connected");
+
+		connected = (CheckBoxPreference) findPreference("connected");
 		connected.setOnPreferenceChangeListener(new OnPreferenceChangeListener() {
-            public boolean onPreferenceChange(Preference preference, Object change) {
-                if (((Boolean) change).booleanValue()) {
-                	Intent authIntent 
-                		= new Intent(getBaseContext(), AuthActivity.class); 
-                	startActivityForResult(authIntent, AUTH_REQUEST_CODE);
-                } else {
-                    // TODO: Show warning dialog
-                }
-                return false;
-            }
-        });
-		
-		/*
-		 * 
-		 * 
-		For login:
-		new Intent(getBaseContext(), AuthActivity.class),
-	        			AUTH_REQUEST_CODE);
-		 */	   
-	    	
-	    startLocationLogger();
+			public boolean onPreferenceChange(Preference pref, Object value) {
+				if ((Boolean) value) {
+					showChooseAccountActivity();	
+				} else {
+					showLogoutDialog();
+				}
+				return false;
+			}
+		});
+		updateConnectedDescription();
+
+		startTracker();
 	}
 	
-	private void startLocationLogger() {
-		Intent serviceIntent = new Intent(this, LocationLoggerService.class);
-		
-		if (!isServiceRunning(LocationLoggerService.class.getCanonicalName())) {
-	      startService(serviceIntent);
-	    }
-	    
-		locationLoggerServiceConn = new ServiceConnection() {
-			@Override
-			public void onServiceConnected(ComponentName className, 
-					IBinder service) {
-				
-				locationLoggerBinder = 
-						((LocationLoggerService.LocalBinder)service);
-			}
-			public void onServiceDisconnected(ComponentName className) {
-				locationLoggerBinder = null;
-			}			
+	private void showLogoutDialog() {
+		DialogInterface.OnClickListener yes = new DialogInterface.OnClickListener() {
+		    @Override
+		    public void onClick(DialogInterface dialog, int which) {
+		    	prefs.setAuthToken(null);
+		    	updateConnectedDescription();
+		    }
 		};
 		
-		bindService(serviceIntent, locationLoggerServiceConn, 0);
+		AlertDialog.Builder builder = new AlertDialog.Builder(this);
+		builder.setTitle(getString(R.string.logout_title))
+			.setMessage(getString(R.string.logout_message))
+			.setPositiveButton(getString(R.string.logout_yes), yes)
+		    .setNegativeButton(getString(R.string.logout_no), null)
+		    .show();
 	}
 	
+	void updateConnectedDescription() {
+		boolean hasAuthToken = prefs.getAuthToken() != null; 
+		connected.setChecked(hasAuthToken);
+		if (hasAuthToken) {
+			connected.setTitle(getString(R.string.ui_connected_label_with_account));
+			connected.setSummary(
+					String.format(getString(R.string.ui_connected_with_account), 
+							prefs.getAuthAccount().name));
+		} else {
+			connected.setTitle(getString(R.string.ui_connected_label));
+			connected.setSummary(getString(R.string.ui_connected_desc));
+		}
+	}
+	
+	void updateConnectedLoggingIn() {
+		connected.setTitle(getString(R.string.ui_connected_label_logging_in));
+		connected.setSummary(
+			String.format(getString(R.string.ui_connected_logging_in), 
+						prefs.getAuthAccount().name));
+	}
+
+	private void startTracker() {				
+		trackerConn = new ServiceConnection() {
+			@Override
+			public void onServiceConnected(ComponentName cn, IBinder service) {
+				trackerBinder = ((TrackerService.LocalBinder) service);
+			}
+			public void onServiceDisconnected(ComponentName className) {
+				trackerBinder = null;
+			}
+		};
+		TrackerService.startAndBind(this, trackerConn);
+	}
+	
+	private void showChooseAccountActivity() {
+		Intent intent = AccountPicker.newChooseAccountIntent(
+				prefs.getAuthAccountOrDefault(),
+				null, new String[] { GoogleAuthUtil.GOOGLE_ACCOUNT_TYPE },
+				false, getString(R.string.ui_account_picker_description),
+				null, null, null);
+		startActivityForResult(intent, CHOOSE_ACCOUNT_REQUEST);
+	}
+
+	protected void onActivityResult(int request, int result, Intent data) {
+		switch (request) {
+		case CHOOSE_ACCOUNT_REQUEST:
+			if (result == RESULT_OK) {
+				Account account = new Account(
+						data.getStringExtra(AccountManager.KEY_ACCOUNT_NAME), 
+						data.getStringExtra(AccountManager.KEY_ACCOUNT_TYPE));
+				prefs.setAuthAccount(account);
+				updateConnectedLoggingIn();
+				new AuthTask().execute();
+			}
+			break;
+		case AUTH_RECOVERY:
+			if (result == RESULT_OK) {
+				updateConnectedLoggingIn();
+				new AuthTask().execute();
+			}
+			break;
+		}
+	}
+
 	@Override
 	protected void onDestroy() {
-	    super.onDestroy();
-	    if (locationLoggerServiceConn != null) {
-	    	unbindService(locationLoggerServiceConn);
-	    }
-	}
-	
-	protected void onActivityResult(final int requestCode, final int resultCode,
-	         final Intent data) {
-	     if (requestCode == AUTH_REQUEST_CODE && resultCode == RESULT_OK) {	    	 
-	         if (locationLoggerBinder != null) {
-	        	 locationLoggerBinder.setAuthInfo(
-	        			 new Account(data.getStringExtra("accountName"),
-	        					 	 data.getStringExtra("accountType")),
-	        			 data.getStringExtra("authToken"));
-	         } else {
-	        	 // TODO: Handle situation where for some reason the service
-	        	 // hasn't been started yet or is null.
-	         }
-	     }
-	 }
-	
-	private String getLocationDataCSV() {
-		StringBuffer buf = new StringBuffer();
-		
-		try {
-			SQLiteDatabase db;
-			db = openOrCreateDatabase(DATABASE_NAME, SQLiteDatabase.OPEN_READWRITE, null);
-			Cursor c = db.rawQuery(
-					"SELECT GMTTIMESTAMP,PROVIDER,LATITUDE,LONGITUDE,ALTITUDE,ACCURACY,"
-						+ "SPEED,BEARING FROM LOCATIONS ORDER BY GMTTIMESTAMP DESC", null);
-			if (c != null) {
-	      while (c.moveToNext()) {
-	      	buf.append(c.getString(0).replace("'", "''"));
-	      	buf.append(",");
-	      	buf.append(c.getString(1).replace("'", "''"));
-	      	buf.append(",");
-	      	buf.append(c.getDouble(2));
-	      	buf.append(",");
-	      	buf.append(c.getDouble(3));
-	      	buf.append(",");
-	      	buf.append(c.getDouble(4));
-	      	buf.append(",");
-	      	buf.append(c.getDouble(5));
-	      	buf.append(",");
-	      	buf.append(c.getDouble(6));
-	      	buf.append(",");
-	      	buf.append(c.getDouble(7));
-	      	buf.append("\r\n");
-	      }
-	      c.close();
-			}
-		} catch (Exception e) {
-			buf.append(e.toString());
+		super.onDestroy();
+		if (trackerConn != null) {
+			unbindService(trackerConn);
 		}
-		return buf.toString();
-	}
-	
-	private boolean isServiceRunning(String className) {
-		ActivityManager manager = (ActivityManager) getSystemService(ACTIVITY_SERVICE);
-	    for (RunningServiceInfo service : manager.getRunningServices(Integer.MAX_VALUE)) {
-	        if (className.equals(service.service.getClassName())) {
-	            return true;
-	        }
-	    }
-	    return false;
 	}
 
 	@Override
@@ -202,5 +186,38 @@ public class MainActivity extends PreferenceActivity {
 		// Inflate the menu; this adds items to the action bar if it is present.
 		getMenuInflater().inflate(R.menu.main, menu);
 		return true;
-	}	
+	}
+
+	private class AuthTask extends AsyncTask<String, Void, String> {
+		@Override
+		protected String doInBackground(String... accountNameArgs) {
+			String accountName = prefs.getAuthAccount().name;
+
+			String token = null;
+			try {
+				token = GoogleAuthUtil.getToken(getApplicationContext(),
+							accountName, 
+							MainActivity.this.getString(R.string.auth_scope));
+			} catch (GooglePlayServicesAvailabilityException playEx) {
+				Dialog dialog = GooglePlayServicesUtil.getErrorDialog(
+						playEx.getConnectionStatusCode(), MainActivity.this,
+						AUTH_ERROR_DIALOG);
+			} catch (UserRecoverableAuthException recoverableException) {
+				Intent recoveryIntent = recoverableException.getIntent();
+				startActivityForResult(recoveryIntent, AUTH_RECOVERY);
+			} catch (GoogleAuthException authEx) {
+				// TODO: Handle the unexpected exception in a better way
+				authEx.printStackTrace();
+			} catch (IOException ioEx) {
+				// TODO: I think in this case you are supposed to retry auth
+				ioEx.printStackTrace();
+			}
+			return token;
+		}
+
+		protected void onPostExecute(String authToken) {
+			MainActivity.this.prefs.setAuthToken(authToken);
+			updateConnectedDescription();
+		}
+	}
 }

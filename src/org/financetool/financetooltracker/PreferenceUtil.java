@@ -29,8 +29,8 @@ public class PreferenceUtil {
 	}
 	
 	public void setAuthAccount(Account account) {
-		editor.putString("auth_account_name", account.name);
-		editor.putString("auth_account_type", account.type);
+		editor.putString(AccountManager.KEY_ACCOUNT_NAME, account.name);
+		editor.putString(AccountManager.KEY_ACCOUNT_TYPE, account.type);
 		editor.commit();
 	}
 	
@@ -39,12 +39,12 @@ public class PreferenceUtil {
 		if (googleAccounts.length > 0) {
 			return googleAccounts[0];
 		}
-		return null; 
+		return null;
 	}
 	
-	private Account getAuthAccount() {		
-		String name = prefs.getString("auth_account_name", null);
-		String type = prefs.getString("auth_account_type", null);
+	public Account getAuthAccount() {		
+		String name = prefs.getString(AccountManager.KEY_ACCOUNT_NAME, null);
+		String type = prefs.getString(AccountManager.KEY_ACCOUNT_TYPE, null);
 		if (name != null && type != null) {
 			Account[] accounts = accountManager.getAccountsByType(type);
 			for (Account account : accounts) {
@@ -54,6 +54,15 @@ public class PreferenceUtil {
 			}
 		}
 		return null;
+	}
+	
+	public void setAuthToken(String token) {
+		editor.putString(AccountManager.KEY_AUTHTOKEN, token);
+		editor.commit();
+	}
+	
+	public String getAuthToken() {
+		return prefs.getString(AccountManager.KEY_AUTHTOKEN, null);
 	}
 	
 	private Account[] getGoogleAccounts() {

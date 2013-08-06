@@ -25,9 +25,12 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import android.accounts.Account;
+import android.app.ActivityManager;
 import android.app.Service;
+import android.app.ActivityManager.RunningServiceInfo;
 import android.content.Context;
 import android.content.Intent;
+import android.content.ServiceConnection;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.location.Location;
@@ -39,7 +42,7 @@ import android.os.IBinder;
 import android.util.Log;
 import android.widget.TextView;
 
-public class LocationLoggerService extends Service implements LocationListener {
+public class TrackerService extends Service implements LocationListener {
 	private static final String DATABASE_NAME = "FTLOCATIONDB";
 	private static final String LOCATION_UPLOAD_URL 
 		= "https://trackmiles.herokuapp.com/api/v1/locations/bulk_create";
@@ -48,9 +51,9 @@ public class LocationLoggerService extends Service implements LocationListener {
 	private LocationManager lm;
 	private LocationListener locationListener;
 	
-	private LinkedBlockingDeque locationsToSave;		
+	private LinkedBlockingDeque<Location> locationsToSave;		
 	private boolean keepWaitingForLocations = false;	
-	private LocationLoggerService outerThisForThread = this;
+	private TrackerService outerThisForThread = this;
 	
 	private long lastSavedLocationTime = 0;
 	private String lastLocationProvider;
@@ -60,8 +63,27 @@ public class LocationLoggerService extends Service implements LocationListener {
 	private long timeBetweenSaves = 1000;
 	private long timeBetweenUploads = 1000;
 	
-	private Account authAccount = null;
-	private String authToken = null;
+	private PreferenceUtil prefs;
+	
+	public static void startAndBind(Context context, ServiceConnection conn) {
+		Intent intent = new Intent(context, TrackerService.class);
+		if (!isRunning(context)) {
+			context.startService(intent);
+		}
+		context.bindService(intent, conn, 0);
+	}
+	
+	public static boolean isRunning(Context c) {
+		String className = TrackerService.class.getCanonicalName();
+		ActivityManager manager 
+			= (ActivityManager) c.getSystemService(ACTIVITY_SERVICE);	    
+		for (RunningServiceInfo info : manager.getRunningServices(Integer.MAX_VALUE)) {
+	        if (className.equals(info.service.getClassName())) {
+	            return true;
+	        }
+	    }
+	    return false;
+	}
 
 	@Override
 	public int onStartCommand(Intent intent, int flags, int startId) {
@@ -72,8 +94,11 @@ public class LocationLoggerService extends Service implements LocationListener {
 	
 	@Override
 	public void onCreate() {
-		super.onCreate();				
-		locationsToSave = new LinkedBlockingDeque(500);				
+		super.onCreate();
+		
+		prefs = new PreferenceUtil(getApplicationContext());
+		
+		locationsToSave = new LinkedBlockingDeque(500);		
 		
 		lm = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
 		//lm.requestLocationUpdates(lm.PASSIVE_PROVIDER, timeBetweenLocations, 5.0f, this);
@@ -111,9 +136,7 @@ public class LocationLoggerService extends Service implements LocationListener {
 	private final IBinder binder = new LocalBinder();
 	
 	public class LocalBinder extends Binder {
-		public void setAuthInfo(Account account, String token) {
-			LocationLoggerService.this.authAccount = account;
-			LocationLoggerService.this.authToken = token;
+		public void setAuthInfo(Account account, String token) {			
 		}
     }
 	
@@ -162,6 +185,7 @@ public class LocationLoggerService extends Service implements LocationListener {
 			// TODO: Implement the actual upload code, delete from the SQLite DB.
 			// TODO: Only upload if in Wifi?						
 			
+			String authToken = prefs.getAuthToken();
 			if (authToken != null) {								
 				try {
 					JSONArray locsJSON = getSavedLocationsJSON();

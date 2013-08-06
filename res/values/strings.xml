@@ -5,7 +5,18 @@
 <string name="GOOGLE_ACCOUNT_TYPE">com.google</string>
 
 <string name="ui_connected_label">Connect</string>
-<string name="ui_connected_desc">Tap to connect with your Google Account (required).</string>
+<string name="ui_connected_desc">Tap to connect your Google Account (required).</string>
+
+<string name="ui_connected_label_with_account">Connected</string>
+<string name="ui_connected_with_account">As %1$s</string>
+
+<string name="ui_connected_label_logging_in">Connect</string>
+<string name="ui_connected_logging_in">As %1$s &#8230;</string>
+
+<string name="logout_title">Disconnect account?</string>
+<string name="logout_message">Are you sure you want to disconnect your Google Account?</string>
+<string name="logout_yes">Yes</string>
+<string name="logout_no">No</string>
 
 <string name="ui_track_location_label">Track location</string>
 <string name="ui_track_location_desc">Record locations in the cloud to track trips (uncheck to pause tracking).</string>
@@ -34,5 +45,7 @@
 
 <string name="select_login_account">Choose Google Account</string>
 
+<!-- <string name="auth_scope">oauth2:https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile</string>  -->
+<string name="auth_scope">oauth2:https://www.googleapis.com/auth/coordinate</string>
 
 </resources>
