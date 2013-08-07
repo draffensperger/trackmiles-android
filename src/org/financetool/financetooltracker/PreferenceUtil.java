@@ -31,7 +31,7 @@ public class PreferenceUtil {
 	public void setAuthAccount(Account account) {
 		editor.putString(AccountManager.KEY_ACCOUNT_NAME, account.name);
 		editor.putString(AccountManager.KEY_ACCOUNT_TYPE, account.type);
-		editor.commit();
+		editor.apply();
 	}
 	
 	private Account getDefaultAccount() {
@@ -58,7 +58,7 @@ public class PreferenceUtil {
 	
 	public void setAuthToken(String token) {
 		editor.putString(AccountManager.KEY_AUTHTOKEN, token);
-		editor.commit();
+		editor.apply();
 	}
 	
 	public String getAuthToken() {

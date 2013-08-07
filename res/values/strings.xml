@@ -45,7 +45,7 @@
 
 <string name="select_login_account">Choose Google Account</string>
 
-<!-- <string name="auth_scope">oauth2:https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile</string>  -->
-<string name="auth_scope">oauth2:https://www.googleapis.com/auth/coordinate</string>
+<string name="auth_scope">oauth2:https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile</string>
+<string name="api_base_url">https://trackmiles.herokuapp.com/api/v1/</string>
 
 </resources>

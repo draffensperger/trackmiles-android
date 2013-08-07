@@ -38,6 +38,7 @@ import android.app.AlertDialog;
 import android.app.Dialog;
 import android.app.DialogFragment;
 import android.text.method.LinkMovementMethod;
+import android.util.Log;
 import android.view.Menu;
 import android.view.View;
 import android.widget.Button;
@@ -48,14 +49,16 @@ import com.google.android.gms.common.AccountPicker;
 import com.google.android.gms.common.GooglePlayServicesUtil;
 
 public class MainActivity extends PreferenceActivity {
+	public static String TAG = "Mile Tracker";
+	
 	private TrackerService.LocalBinder trackerBinder = null;
 	private ServiceConnection trackerConn = null;
 	private PreferenceUtil prefs;
 	private CheckBoxPreference connected;
 
-	private static final int CHOOSE_ACCOUNT_REQUEST = 1;
-	private static final int AUTH_ERROR_DIALOG = 2;
-	private static final int AUTH_RECOVERY = 3;	
+	private static final int CHOOSE_ACCOUNT = 1;
+	private static final int AUTH_RECOVERY = 2;
+	private static final int AUTH_ERROR_DIALOG = 3;	
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -70,7 +73,7 @@ public class MainActivity extends PreferenceActivity {
 		final Button uploadButton = (Button) findViewById(R.id.sync_button);
 		uploadButton.setOnClickListener(new View.OnClickListener() {
 			public void onClick(View v) {
-				// TODO: Call the service binder to tell it to upload
+				trackerBinder.uploadNow();
 			}
 		});
 
@@ -149,12 +152,12 @@ public class MainActivity extends PreferenceActivity {
 				null, new String[] { GoogleAuthUtil.GOOGLE_ACCOUNT_TYPE },
 				false, getString(R.string.ui_account_picker_description),
 				null, null, null);
-		startActivityForResult(intent, CHOOSE_ACCOUNT_REQUEST);
+		startActivityForResult(intent, CHOOSE_ACCOUNT);
 	}
 
 	protected void onActivityResult(int request, int result, Intent data) {
 		switch (request) {
-		case CHOOSE_ACCOUNT_REQUEST:
+		case CHOOSE_ACCOUNT:
 			if (result == RESULT_OK) {
 				Account account = new Account(
 						data.getStringExtra(AccountManager.KEY_ACCOUNT_NAME), 
@@ -198,19 +201,16 @@ public class MainActivity extends PreferenceActivity {
 				token = GoogleAuthUtil.getToken(getApplicationContext(),
 							accountName, 
 							MainActivity.this.getString(R.string.auth_scope));
-			} catch (GooglePlayServicesAvailabilityException playEx) {
-				Dialog dialog = GooglePlayServicesUtil.getErrorDialog(
-						playEx.getConnectionStatusCode(), MainActivity.this,
-						AUTH_ERROR_DIALOG);
-			} catch (UserRecoverableAuthException recoverableException) {
-				Intent recoveryIntent = recoverableException.getIntent();
-				startActivityForResult(recoveryIntent, AUTH_RECOVERY);
-			} catch (GoogleAuthException authEx) {
-				// TODO: Handle the unexpected exception in a better way
-				authEx.printStackTrace();
-			} catch (IOException ioEx) {
-				// TODO: I think in this case you are supposed to retry auth
-				ioEx.printStackTrace();
+			} catch (GooglePlayServicesAvailabilityException e) {
+				GooglePlayServicesUtil.getErrorDialog(
+						e.getConnectionStatusCode(), MainActivity.this,
+						AUTH_ERROR_DIALOG).show();
+			} catch (UserRecoverableAuthException e) {
+				startActivityForResult(e.getIntent(), AUTH_RECOVERY);
+			} catch (GoogleAuthException e) {
+				Log.e(TAG, "Unrecoverable auth exception: " + e.getMessage(), e);
+			} catch (IOException e) {
+				Log.i(TAG, "Transient auth error: " + e.getMessage(), e);
 			}
 			return token;
 		}
