@@ -18,6 +18,8 @@ import com.google.android.gms.auth.UserRecoverableNotifiedException;
 
 import android.content.Context;
 import android.location.Location;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.util.Log;
 
 public class ServerUtil {
@@ -54,7 +56,14 @@ public class ServerUtil {
 	}
 	
 	private JSONObject callAPI(String cmd, JSONObject arg, boolean retryIfUnauthorized) {
-		String authToken = prefs.getAuthToken();
+		if (!isNetworkAvailable()) {
+			return null;
+		}
+		if (!prefs.isAuthAccountConnected()) {
+			return null;
+		}
+		
+		String authToken = prefs.getAuthToken();				
 		if (authToken == null) {
 			if (requestNewAuthToken() != null && retryIfUnauthorized) {
 				return callAPI(cmd, arg, false);
@@ -95,6 +104,14 @@ public class ServerUtil {
 		}
 		
 		return null;
+	}
+	
+	private boolean isNetworkAvailable() {
+		NetworkInfo netInfo = 
+			((ConnectivityManager) 
+				context.getSystemService(Context.CONNECTIVITY_SERVICE))
+	     	.getActiveNetworkInfo();
+	    return netInfo != null && netInfo.isConnected();
 	}
 	
 	private String requestNewAuthToken() {

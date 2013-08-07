@@ -32,6 +32,12 @@
 
 <string name="ui_account_picker_description">Choose Account to Connect</string>
 
+<string name="login_err_fetal_msg">Unexpected error logging in.</string>
+<string name="login_err_fetal_title">Unable to log in</string>
+<string name="login_err_temp_msg">Unable to log in right now (may require network).</string>
+<string name="login_err_temp_title">Unable to log in now</string>
+<string name="ok">OK</string>
+
 <string name="start">Start</string>
 <string name="stop">Stop</string>
 <string name="locationBoxDefault">Click Show Data to see the data.</string>

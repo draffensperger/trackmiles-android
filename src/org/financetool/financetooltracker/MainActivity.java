@@ -154,6 +154,24 @@ public class MainActivity extends PreferenceActivity {
 				null, null, null);
 		startActivityForResult(intent, CHOOSE_ACCOUNT);
 	}
+	
+	private void showLoginTempErrorDialog() {
+		new AlertDialog.Builder(this)
+			.setMessage(getString(R.string.login_err_temp_msg))
+			.setTitle(getString(R.string.login_err_temp_title))
+			.setPositiveButton(getString(R.string.ok), null)
+			.setCancelable(true)
+			.create().show();
+	}
+	
+	private void showLoginFetalErrorDialog() {
+		new AlertDialog.Builder(this)
+			.setMessage(getString(R.string.login_err_fetal_msg))
+			.setTitle(getString(R.string.login_err_fetal_title))
+			.setPositiveButton(getString(R.string.ok), null)
+			.setCancelable(true)
+			.create().show();
+	}
 
 	protected void onActivityResult(int request, int result, Intent data) {
 		switch (request) {
@@ -192,8 +210,13 @@ public class MainActivity extends PreferenceActivity {
 	}
 
 	private class AuthTask extends AsyncTask<String, Void, String> {
+		private boolean showFetalErrorDialog = false;
+		private boolean showTempErrorDialog = false;
+		
 		@Override
 		protected String doInBackground(String... accountNameArgs) {
+			MainActivity activity = MainActivity.this;
+			
 			String accountName = prefs.getAuthAccount().name;
 
 			String token = null;
@@ -203,20 +226,23 @@ public class MainActivity extends PreferenceActivity {
 							MainActivity.this.getString(R.string.auth_scope));
 			} catch (GooglePlayServicesAvailabilityException e) {
 				GooglePlayServicesUtil.getErrorDialog(
-						e.getConnectionStatusCode(), MainActivity.this,
-						AUTH_ERROR_DIALOG).show();
+						e.getConnectionStatusCode(), activity, AUTH_ERROR_DIALOG).show();
 			} catch (UserRecoverableAuthException e) {
 				startActivityForResult(e.getIntent(), AUTH_RECOVERY);
-			} catch (GoogleAuthException e) {
+			} catch (GoogleAuthException e) {				
 				Log.e(TAG, "Unrecoverable auth exception: " + e.getMessage(), e);
+				showFetalErrorDialog = true;
 			} catch (IOException e) {
 				Log.i(TAG, "Transient auth error: " + e.getMessage(), e);
+				showTempErrorDialog = true;
 			}
 			return token;
 		}
 
 		protected void onPostExecute(String authToken) {
 			MainActivity.this.prefs.setAuthToken(authToken);
+			if (showFetalErrorDialog) showLoginFetalErrorDialog();
+			if (showTempErrorDialog) showLoginTempErrorDialog();						
 			updateConnectedDescription();
 		}
 	}

@@ -28,6 +28,18 @@ public class PreferenceUtil {
 		}
 	}
 	
+	public boolean isAuthAccountConnected() {
+		return prefs.getBoolean("connected", false);
+	}
+	
+	public boolean shouldUseGPS() {
+		return prefs.getBoolean("use_gps", false);
+	}
+	
+	public boolean shouldTrackLocation() {
+		return prefs.getBoolean("track_location", false);
+	}
+	
 	public void setAuthAccount(Account account) {
 		editor.putString(AccountManager.KEY_ACCOUNT_NAME, account.name);
 		editor.putString(AccountManager.KEY_ACCOUNT_TYPE, account.type);
