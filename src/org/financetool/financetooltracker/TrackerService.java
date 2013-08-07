@@ -20,9 +20,7 @@ import android.util.Log;
 public class TrackerService extends Service implements LocationListener {
 	public static String TAG = MainActivity.TAG; 
 	
-	private LocationManager lm;
-	private LocationListener locationListener;
-	
+	private LocationManager lm;	
 	private DBUtil db;
 	private ServerUtil server;
 	private PreferenceUtil prefs;
@@ -31,13 +29,14 @@ public class TrackerService extends Service implements LocationListener {
 	private boolean keepWaitingForLocations = false;	
 	private TrackerService outerThisForThread = this;
 	
+	// TODO: Move these to the configuration file
 	private long lastSavedLocationTime = 0;
 	private String lastLocationProvider;
 	//private long timeBetweenLocations = 8000;
 	//private long timeBetweenUploads = 60 * 60 * 1000;
-	private long timeBetweenLocations = 1000;
-	private long timeBetweenSaves = 1000;
-	private long timeBetweenUploads = 1000;		
+	private long timeBetweenLocations = 1 * 1000;
+	private long timeBetweenSaves = 15 * 1000;
+	private long timeBetweenUploads = 10 * 60 * 1000;		
 	
 	public static void startAndBind(Context context, ServiceConnection conn) {		
 		context.bindService(start(context), conn, 0);
@@ -78,12 +77,13 @@ public class TrackerService extends Service implements LocationListener {
 		db = new DBUtil(getApplicationContext());
 		server = new ServerUtil(getApplicationContext());
 		
-		locationsToSave = new LinkedBlockingDeque<Location>(500);		
+		locationsToSave = new LinkedBlockingDeque<Location>();		
 		
 		lm = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
 		//lm.requestLocationUpdates(lm.PASSIVE_PROVIDER, timeBetweenLocations, 5.0f, this);
-		lm.requestLocationUpdates(lm.GPS_PROVIDER, 0, 5.0f, this);
-		lm.requestLocationUpdates(lm.NETWORK_PROVIDER, timeBetweenLocations, 5.0f, this);
+		lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 5.0f, this);
+		lm.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 
+				timeBetweenLocations, 5.0f, this);
     
 		keepWaitingForLocations = true;    
 		new SaveAndUploadThread().start();
@@ -93,7 +93,7 @@ public class TrackerService extends Service implements LocationListener {
 	public void onDestroy() {
 		super.onDestroy();		
 		keepWaitingForLocations = false;
-		lm.removeUpdates(locationListener);
+		lm.removeUpdates(this);
 	}
 	
 	public void onLocationChanged(Location loc) {
@@ -118,6 +118,9 @@ public class TrackerService extends Service implements LocationListener {
 	public class LocalBinder extends Binder {
 		public void uploadNow() {	
 		}
+		public void updateTrackingFromPrefs() {
+			// TODO: Use the GPS and Track Location preferences
+		}
     }
 	
 	@Override
@@ -141,7 +144,7 @@ public class TrackerService extends Service implements LocationListener {
 					}
 				}
 				
-				//yield();
+				yield();
 				try {
 					sleep(timeBetweenSaves);
 				} catch (InterruptedException e) {
@@ -149,10 +152,9 @@ public class TrackerService extends Service implements LocationListener {
 				}
 			}
 			saveLocationsFromQueue();
-			server.uploadLocations(db.getSavedLocations());
-			
+			server.uploadLocations(db.getSavedLocations());			
 			db.closeDB();
-		}				
+		}	
 		
 		private void saveLocationsFromQueue() {
 			locationsToSave.drainTo(locsBuffer);			
