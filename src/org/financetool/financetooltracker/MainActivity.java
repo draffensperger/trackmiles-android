@@ -23,6 +23,7 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.accounts.Account;
@@ -48,7 +49,9 @@ import com.google.android.gms.auth.*;
 import com.google.android.gms.common.AccountPicker;
 import com.google.android.gms.common.GooglePlayServicesUtil;
 
-public class MainActivity extends PreferenceActivity {
+public class MainActivity extends PreferenceActivity implements 
+	SharedPreferences.OnSharedPreferenceChangeListener {
+	
 	public static String TAG = "Mile Tracker";
 	
 	private TrackerService.LocalBinder trackerBinder = null;
@@ -78,7 +81,10 @@ public class MainActivity extends PreferenceActivity {
 		});
 
 		addPreferencesFromResource(R.xml.preferences);
-
+				
+		
+		prefs.addListener(this);
+		
 		connected = (CheckBoxPreference) findPreference("connected");
 		connected.setOnPreferenceChangeListener(new OnPreferenceChangeListener() {
 			public boolean onPreferenceChange(Preference pref, Object value) {
@@ -93,6 +99,16 @@ public class MainActivity extends PreferenceActivity {
 		updateConnectedDescription();
 
 		startTracker();
+	}
+	
+	@Override
+	public void onSharedPreferenceChanged(SharedPreferences prefs,
+			String key) {
+		if (key.equals("track_location") || key.equals("use_gps")) {
+			if (trackerBinder != null) {
+				trackerBinder.updateTrackingFromPrefs();
+			}
+		}
 	}
 	
 	private void showLogoutDialog() {

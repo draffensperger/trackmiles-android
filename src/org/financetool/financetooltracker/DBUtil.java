@@ -17,11 +17,14 @@ public class DBUtil {
 			
 	public void saveLocation(Location loc) {
 		db.execSQL(
-			"INSERT INTO locations (gmttimestamp,provider,latitude," +
+			"INSERT INTO locations (time,provider,latitude," +
 					"longitude,altitude,accuracy,speed,bearing) " +
 			"VALUES (?,?,?,?,?,?,?,?)",
 			new Object[] {
-			loc.getTime(), loc.getProvider(), loc.getLatitude(),
+			loc.getTime(), 
+			loc.getProvider(), 
+			loc.getLatitude(),
+			loc.getLongitude(),
 			loc.hasAccuracy() ? loc.getAltitude() : null,
 			loc.hasAccuracy() ? loc.getAccuracy() : null,
 			loc.hasSpeed() ? loc.getSpeed() : null,
@@ -33,7 +36,7 @@ public class DBUtil {
 	public Collection<Location> getSavedLocations() {
 		ArrayList<Location> locs = new ArrayList<Location>();
 		Cursor c = db.rawQuery(
-			"SELECT provider,gmttimestamp,latitude,longitude,altitude," +
+			"SELECT provider,time,latitude,longitude,altitude," +
 			"accuracy,speed,bearing FROM locations", null);
 		if (c != null) {
 			while (c.moveToNext()) {
@@ -72,7 +75,7 @@ public class DBUtil {
 		@Override
 		public void onCreate(SQLiteDatabase db) {
 			db.execSQL("CREATE TABLE IF NOT EXISTS locations " + 
-					"(gmttimestamp INTEGER, provider VARCHAR, latitude REAL," +
+					"(time INTEGER, provider VARCHAR, latitude REAL," +
 					"longitude REAL, altitude REAL, accuracy REAL, speed REAL, " + 
 					"bearing REAL)");
 		}

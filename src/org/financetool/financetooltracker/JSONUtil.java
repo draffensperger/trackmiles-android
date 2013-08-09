@@ -3,20 +3,28 @@ package org.financetool.financetooltracker;
 import java.text.SimpleDateFormat;
 import java.util.Locale;
 import java.util.Collection;
+import java.util.TimeZone;
+
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import android.location.Location;
 import android.util.Log;
 
-public class JSONUtil {	
+public class JSONUtil {			
 	public static String TAG = MainActivity.TAG; 
+	private SimpleDateFormat gmtFormat;;
 	
-	public static JSONArray getLocationsAsJSON(Collection<Location> locs) {
+	public JSONUtil() {
+		gmtFormat = new SimpleDateFormat("yyyyMMddHHmmss", Locale.US);
+		gmtFormat.setTimeZone(TimeZone.getTimeZone("gmt"));       
+	}
+	
+	public JSONArray getLocationsAsJSON(Collection<Location> locs) {
 		JSONArray json = new JSONArray();
 		try {
 			for (Location l: locs) {			
-					json.put(locationToJSON(l));			
+				json.put(locationToJSON(l));			
 			}
 		} catch (JSONException e) {
 			Log.e(TAG, e.toString(), e);
@@ -24,10 +32,10 @@ public class JSONUtil {
 		return json;
 	}
 	
-	private static JSONObject locationToJSON(Location l) throws JSONException {
+	public JSONObject locationToJSON(Location l) throws JSONException {
 		JSONObject json = new JSONObject();
 		json.put("provider", l.getProvider());
-		json.put("recorded_time", formatTime(l.getTime()));
+		json.put("recorded_time", gmtFormat.format(l.getTime()));
 		json.put("latitude", l.getLatitude());
 		json.put("longitude", l.getLongitude());
 		if (l.hasAltitude()) json.put("altitude", l.getAltitude());
@@ -36,8 +44,4 @@ public class JSONUtil {
 		if (l.hasBearing()) json.put("bearing", l.getBearing());		
 		return json;
 	}
-	
-	private static String formatTime(long time) {			
-		return new SimpleDateFormat("yyyyMMddHHmmss", Locale.US).format(time);
-	}	
 }

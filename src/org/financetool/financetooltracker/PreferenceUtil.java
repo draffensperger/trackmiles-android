@@ -19,6 +19,10 @@ public class PreferenceUtil {
 		editor = prefs.edit();
 	}
 	
+	public void addListener(SharedPreferences.OnSharedPreferenceChangeListener l) {
+		prefs.registerOnSharedPreferenceChangeListener(l);
+	}
+	
 	public Account getAuthAccountOrDefault() {
 		Account account = getAuthAccount();
 		if (account != null) {

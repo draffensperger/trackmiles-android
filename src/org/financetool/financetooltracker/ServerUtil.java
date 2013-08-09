@@ -28,10 +28,12 @@ public class ServerUtil {
 	private PreferenceUtil prefs; 
 	private String apiBaseURL;
 	private Context context;
+	private JSONUtil jsonUtil;
 	
 	public ServerUtil(Context context) {
 		prefs = new PreferenceUtil(context);
 		apiBaseURL = context.getString(R.string.api_base_url);
+		jsonUtil= new JSONUtil();
 		this.context = context;
 	}
 	
@@ -39,7 +41,7 @@ public class ServerUtil {
 		try {
 			if (locs.size() > 0) {
 				JSONObject arg = new JSONObject();			
-					arg.put("locations", JSONUtil.getLocationsAsJSON(locs));			
+					arg.put("locations", jsonUtil.getLocationsAsJSON(locs));			
 				JSONObject json = callAPI("locations/bulk_create", arg);
 				if (json != null) {
 					return json.getLong("num_created_locations") == locs.size();					

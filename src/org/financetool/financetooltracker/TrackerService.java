@@ -29,14 +29,14 @@ public class TrackerService extends Service implements LocationListener {
 	private boolean keepWaitingForLocations = false;	
 	private TrackerService outerThisForThread = this;
 	
-	// TODO: Move these to the configuration file
 	private long lastSavedLocationTime = 0;
 	private String lastLocationProvider;
-	//private long timeBetweenLocations = 8000;
-	//private long timeBetweenUploads = 60 * 60 * 1000;
-	private long timeBetweenLocations = 1 * 1000;
-	private long timeBetweenSaves = 15 * 1000;
-	private long timeBetweenUploads = 10 * 60 * 1000;		
+	
+	// TODO: Move these to the configuration file	
+	private long timeBetweenLocations = 15 * 1000;
+	private float distanceBetweenLocations = 25.0f; 	
+	private long timeBetweenSaves = 60 * 1000;
+	private long timeBetweenUploads = 15 * 60 * 1000;	
 	
 	public static void startAndBind(Context context, ServiceConnection conn) {		
 		context.bindService(start(context), conn, 0);
@@ -80,10 +80,7 @@ public class TrackerService extends Service implements LocationListener {
 		locationsToSave = new LinkedBlockingDeque<Location>();		
 		
 		lm = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-		//lm.requestLocationUpdates(lm.PASSIVE_PROVIDER, timeBetweenLocations, 5.0f, this);
-		lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 5.0f, this);
-		lm.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 
-				timeBetweenLocations, 5.0f, this);
+		updateTrackingFromPrefs();
     
 		keepWaitingForLocations = true;    
 		new SaveAndUploadThread().start();
@@ -98,7 +95,7 @@ public class TrackerService extends Service implements LocationListener {
 	
 	public void onLocationChanged(Location loc) {
 		long time = System.currentTimeMillis();
-		if ((time - lastSavedLocationTime > timeBetweenLocations) ||
+		if ((time - lastSavedLocationTime >= timeBetweenLocations) ||
 				loc.getProvider() != lastLocationProvider) {
 			
 			lastSavedLocationTime = time;
@@ -112,6 +109,24 @@ public class TrackerService extends Service implements LocationListener {
 	}
 	public void onStatusChanged(String provider, int status, Bundle extras) {
 	}
+	
+	private void requestLocations(String provider, long minTime) {
+		lm.requestLocationUpdates(provider, minTime, 
+				distanceBetweenLocations, this);
+	}
+	
+	private void updateTrackingFromPrefs() {
+		lm.removeUpdates(this);
+		if (prefs.shouldTrackLocation()) {
+			requestLocations(LocationManager.NETWORK_PROVIDER, 
+					timeBetweenLocations);
+			if (prefs.shouldUseGPS()) {
+				requestLocations(LocationManager.GPS_PROVIDER, 0);
+			} else {
+				requestLocations(LocationManager.PASSIVE_PROVIDER, 0);
+			}
+		}				
+	}
 			
 	private final IBinder binder = new LocalBinder();
 	
@@ -119,7 +134,7 @@ public class TrackerService extends Service implements LocationListener {
 		public void uploadNow() {	
 		}
 		public void updateTrackingFromPrefs() {
-			// TODO: Use the GPS and Track Location preferences
+			TrackerService.this.updateTrackingFromPrefs();
 		}
     }
 	
