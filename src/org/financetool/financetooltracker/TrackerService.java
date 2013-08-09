@@ -24,7 +24,7 @@ public class TrackerService extends Service implements LocationListener {
 	
 	private static final long MIN_TIME_BTW_LOCS = 15 * 1000;
 	private static final float MIN_DIST_BTW_LOCS = 50.0f;	
-	private static final int SAVE_BATCH_SIZE = 20;			
+	private static final int SAVE_BATCH_SIZE = 20;
 	
 	public static String TAG = MainActivity.TAG; 
 	
@@ -35,6 +35,7 @@ public class TrackerService extends Service implements LocationListener {
 	
 	private Location lastLocation;
 	private LinkedBlockingDeque<Location> locationsToSave;
+	private static final Location DONE_SIGNAL_LOCATION = new Location("");
 
 	public static void bindAndStartIfUnstarted(Context c, ServiceConnection sc) {	
 		c.bindService(start(c), sc, 0);
@@ -89,12 +90,12 @@ public class TrackerService extends Service implements LocationListener {
 	}
 	
 	private void sendThreadDoneSignal() {
-		locationsToSave.offer(null);
+		locationsToSave.offer(DONE_SIGNAL_LOCATION);
 	}
 	
 	private boolean shouldRecordLocation(Location l) {
 		return
-			lastLocation == null 
+			lastLocation == null
 			|| !lastLocation.getProvider().equals(l.getProvider())
 			|| (
 				System.currentTimeMillis() - lastLocation.getTime() 
@@ -107,7 +108,7 @@ public class TrackerService extends Service implements LocationListener {
 		if (shouldRecordLocation(loc)) {
 			lastLocation = loc;
 			locationsToSave.offer(loc);
-		}		
+		}
 	}
 	public void onProviderDisabled(String provider) {
 	}
@@ -167,7 +168,7 @@ public class TrackerService extends Service implements LocationListener {
 			do {				
 				try {
 					Location loc = locationsToSave.take();
-					if (loc == null) {
+					if (loc == DONE_SIGNAL_LOCATION) {
 						doneSignalReceived = true;
 						break;
 					} else {
