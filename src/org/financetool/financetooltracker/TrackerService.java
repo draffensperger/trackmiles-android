@@ -38,9 +38,9 @@ public class TrackerService extends Service implements LocationListener {
 	private long timeBetweenSaves = 60 * 1000;
 	private long timeBetweenUploads = 15 * 60 * 1000;	
 	
-	public static void startAndBind(Context context, ServiceConnection conn) {		
+	public static void bindAndStartIfUnstarted(Context context, ServiceConnection conn) {		
 		context.bindService(start(context), conn, 0);
-	}
+	}		
 	
 	public static Intent start(Context context) {
 		Intent intent = new Intent(context, TrackerService.class);

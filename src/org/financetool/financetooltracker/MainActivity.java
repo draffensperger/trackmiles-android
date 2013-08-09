@@ -159,7 +159,7 @@ public class MainActivity extends PreferenceActivity implements
 				trackerBinder = null;
 			}
 		};
-		TrackerService.startAndBind(this, trackerConn);
+		TrackerService.bindAndStartIfUnstarted(this, trackerConn);
 	}
 	
 	private void showChooseAccountActivity() {
@@ -209,13 +209,28 @@ public class MainActivity extends PreferenceActivity implements
 			break;
 		}
 	}
-
-	@Override
-	protected void onDestroy() {
-		super.onDestroy();
+	
+	private void unbindFromTracker() {
 		if (trackerConn != null) {
 			unbindService(trackerConn);
 		}
+	}
+	
+	protected void onStart() {
+		super.onStart();
+		startTracker();
+	}
+	
+	protected void onStop() {
+		super.onStop();
+		unbindFromTracker();
+		finish();
+	}
+	
+	@Override
+	protected void onDestroy() {
+		super.onDestroy();
+		unbindFromTracker();
 	}
 
 	@Override
