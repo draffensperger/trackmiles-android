@@ -98,8 +98,46 @@ public class MainActivity extends PreferenceActivity implements
 		});
 		updateConnectedDescription();
 
-		startTracker();
+		bindTrackerStartIfUnstarted();
 	}
+	
+	protected void onStart() {
+		super.onStart();
+	}
+	
+	protected void onStop() {
+		super.onStop();
+		finish();
+	}
+	
+	@Override
+	protected void onDestroy() {
+		super.onDestroy();
+	}
+	
+	private void bindTrackerStartIfUnstarted() {				
+		trackerConn = new ServiceConnection() {
+			@Override
+			public void onServiceConnected(ComponentName cn, IBinder service) {
+				trackerBinder = ((TrackerService.LocalBinder) service);
+			}
+			public void onServiceDisconnected(ComponentName className) {
+				trackerBinder = null;
+			}
+		};
+		TrackerService.bindAndStartIfUnstarted(this, trackerConn);
+	}	
+	
+	private void unbindTracker() {
+		if (trackerConn != null) {
+			try {
+				unbindService(trackerConn);
+				trackerConn = null;
+			} catch (Exception e) {
+				Log.e(TAG, e.toString(), e);
+			}
+		}
+	}	
 	
 	@Override
 	public void onSharedPreferenceChanged(SharedPreferences prefs,
@@ -148,19 +186,6 @@ public class MainActivity extends PreferenceActivity implements
 			String.format(getString(R.string.ui_connected_logging_in), 
 						prefs.getAuthAccount().name));
 	}
-
-	private void startTracker() {				
-		trackerConn = new ServiceConnection() {
-			@Override
-			public void onServiceConnected(ComponentName cn, IBinder service) {
-				trackerBinder = ((TrackerService.LocalBinder) service);
-			}
-			public void onServiceDisconnected(ComponentName className) {
-				trackerBinder = null;
-			}
-		};
-		TrackerService.bindAndStartIfUnstarted(this, trackerConn);
-	}
 	
 	private void showChooseAccountActivity() {
 		Intent intent = AccountPicker.newChooseAccountIntent(
@@ -208,29 +233,6 @@ public class MainActivity extends PreferenceActivity implements
 			}
 			break;
 		}
-	}
-	
-	private void unbindFromTracker() {
-		if (trackerConn != null) {
-			unbindService(trackerConn);
-		}
-	}
-	
-	protected void onStart() {
-		super.onStart();
-		startTracker();
-	}
-	
-	protected void onStop() {
-		super.onStop();
-		unbindFromTracker();
-		finish();
-	}
-	
-	@Override
-	protected void onDestroy() {
-		super.onDestroy();
-		unbindFromTracker();
 	}
 
 	@Override

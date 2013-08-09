@@ -31,7 +31,16 @@ public class DBUtil {
 			loc.hasBearing() ? loc.getBearing() : null					
 			}
 		);
-	}	
+	}
+	
+	public int getNumSavedLocations() {
+		Cursor c = db.rawQuery("SELECT COUNT(*) FROM locations", null);
+		if (c != null && c.moveToFirst()) {
+			return c.getInt(0);
+		} else {
+			return -1;
+		}		
+	}
 	
 	public Collection<Location> getSavedLocations() {
 		ArrayList<Location> locs = new ArrayList<Location>();
@@ -45,10 +54,10 @@ public class DBUtil {
 				l.setTime(c.getLong(i++));
 				l.setLatitude(c.getDouble(i++));
 				l.setLongitude(c.getDouble(i++));
-				if (!c.isNull(i++)) l.setAltitude(c.getDouble(i));
-				if (!c.isNull(i++)) l.setAccuracy(c.getFloat(i));
-				if (!c.isNull(i++)) l.setSpeed(c.getFloat(i));
-				if (!c.isNull(i++)) l.setBearing(c.getFloat(i));					
+				if (!c.isNull(i)) l.setAltitude(c.getDouble(i++));
+				if (!c.isNull(i)) l.setAccuracy(c.getFloat(i++));
+				if (!c.isNull(i)) l.setSpeed(c.getFloat(i++));
+				if (!c.isNull(i)) l.setBearing(c.getFloat(i++));					
 				locs.add(l);
 			}
 			c.close();

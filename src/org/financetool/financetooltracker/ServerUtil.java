@@ -108,7 +108,7 @@ public class ServerUtil {
 		return null;
 	}
 	
-	private boolean isNetworkAvailable() {
+	public boolean isNetworkAvailable() {
 		NetworkInfo netInfo = 
 			((ConnectivityManager) 
 				context.getSystemService(Context.CONNECTIVITY_SERVICE))
