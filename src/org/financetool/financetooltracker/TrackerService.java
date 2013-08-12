@@ -3,6 +3,7 @@ package org.financetool.financetooltracker;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.TimeUnit;
 
 import android.app.ActivityManager;
 import android.app.Service;
@@ -19,12 +20,14 @@ import android.os.IBinder;
 import android.util.Log;
 
 public class TrackerService extends Service implements LocationListener {
-	// Track locations every 15 seconds and that are at least 50m apart.
-	// Upload or save those locations in batches of 20 locations (i.e. 5 minutes)
+	// Track locations every 5 seconds that are at least 5 meters apart	
+	private static final long MIN_TIME_IN_MS_BTW_LOCS = 5 * 1000;	
+	private static final float MIN_DIST_IN_M_BTW_LOCS = 5.0f;
 	
-	private static final long MIN_TIME_BTW_LOCS = 15 * 1000;
-	private static final float MIN_DIST_BTW_LOCS = 50.0f;	
-	private static final int SAVE_BATCH_SIZE = 20;
+	// Save in batches of 32 locations or after 20 minutes since the last 
+	// location received.
+	private static final int SAVE_BATCH_SIZE = 32;
+	public static final long SAVE_IF_NO_LOC_RCVD_FOR_TIME_MS = 20 * 60 * 1000;
 	
 	public static String TAG = MainActivity.TAG; 
 	
@@ -35,7 +38,8 @@ public class TrackerService extends Service implements LocationListener {
 	
 	private Location lastLocation;
 	private LinkedBlockingDeque<Location> locationsToSave;
-	private static final Location DONE_SIGNAL_LOCATION = new Location("");
+	private static final Location SAVE_NOW_SIGNAL = new Location("");
+	private boolean keepWaitingForLocationsToSave = true;
 
 	public static void bindAndStartIfUnstarted(Context c, ServiceConnection sc) {	
 		c.bindService(start(c), sc, 0);
@@ -90,18 +94,21 @@ public class TrackerService extends Service implements LocationListener {
 	}
 	
 	private void sendThreadDoneSignal() {
-		locationsToSave.offer(DONE_SIGNAL_LOCATION);
+		keepWaitingForLocationsToSave = false;
+		locationsToSave.offer(SAVE_NOW_SIGNAL);
 	}
 	
 	private boolean shouldRecordLocation(Location l) {
+		// Record it if it's the first location, it is a more accurate location
+		// or it has been enough time and distance since the last one.
 		return
 			lastLocation == null
-			|| !lastLocation.getProvider().equals(l.getProvider())
-			|| (
-				System.currentTimeMillis() - lastLocation.getTime() 
-					>= MIN_TIME_BTW_LOCS
-				&& lastLocation.distanceTo(l) >=  MIN_DIST_BTW_LOCS
-			);
+			|| (lastLocation.getProvider().equals(LocationManager.NETWORK_PROVIDER)
+				&& (l.getProvider().equals(LocationManager.GPS_PROVIDER)
+					|| l.getProvider().equals(LocationManager.PASSIVE_PROVIDER)))
+			|| (System.currentTimeMillis() - lastLocation.getTime() 
+					>= MIN_TIME_IN_MS_BTW_LOCS
+				&& lastLocation.distanceTo(l) >=  MIN_DIST_IN_M_BTW_LOCS);
 	}
 	
 	public void onLocationChanged(Location loc) {
@@ -119,14 +126,14 @@ public class TrackerService extends Service implements LocationListener {
 	
 	private void requestLocations(String provider, long minTime) {
 		lm.requestLocationUpdates(provider, minTime, 
-				MIN_DIST_BTW_LOCS, this);
+				MIN_DIST_IN_M_BTW_LOCS, this);
 	}
 	
 	private void updateTrackingFromPrefs() {
 		lm.removeUpdates(this);
 		if (prefs.shouldTrackLocation()) {
 			requestLocations(LocationManager.NETWORK_PROVIDER, 
-					MIN_TIME_BTW_LOCS);
+					MIN_TIME_IN_MS_BTW_LOCS);
 			if (prefs.shouldUseGPS()) {
 				requestLocations(LocationManager.GPS_PROVIDER, 0);
 			} else {
@@ -151,58 +158,60 @@ public class TrackerService extends Service implements LocationListener {
 	}
 	
 	private class SaveAndUploadThread extends Thread {		
-		ArrayList<Location> newLocs = new ArrayList<Location>();
-		private boolean doneSignalReceived = false;
-		
-		
 		@Override
 		public void run() {
-			while (!doneSignalReceived) {
-				waitFullBatchOrDone();
-				uploadOrSaveNewLocs();											
+			while (keepWaitingForLocationsToSave) {
+				uploadOrSaveLocations(collectLocationsToSave());											
 			}		
 			db.closeDB();
 		}
 		
-		private void waitFullBatchOrDone() {			
+		private ArrayList<Location> collectLocationsToSave() {
+			ArrayList<Location> locs = new ArrayList<Location>();
 			do {				
 				try {
-					Location loc = locationsToSave.take();
-					if (loc == DONE_SIGNAL_LOCATION) {
-						doneSignalReceived = true;
-						break;
+					Location l = locationsToSave.poll(SAVE_IF_NO_LOC_RCVD_FOR_TIME_MS, 
+							TimeUnit.MILLISECONDS);
+					
+					if (l == null) {
+						// If we have passed the maximum time between uploads
+						// then return if we have locations to save, otherwise
+						// keep waiting.
+						if (!locs.isEmpty()) return locs;
+					} else if (l == SAVE_NOW_SIGNAL) {
+						return locs;
 					} else {
-						newLocs.add(loc);
-					}		
+						locs.add(l);
+					}
 				} catch (InterruptedException e) {
 					Log.e(TAG, e.toString(), e);
 				}
-			} while (newLocs.size() < SAVE_BATCH_SIZE);
+			} while (locs.size() < SAVE_BATCH_SIZE);
+			
+			return locs;
 		}		
 
-		private void uploadOrSaveNewLocs() {
+		private void uploadOrSaveLocations(ArrayList<Location> locs) {
 			if (!server.isNetworkAvailable()) {
-				saveNewLocsToDB();
+				saveLocationsToDB(locs);
 			} else {				
 				Collection<Location> toUpload = db.getSavedLocations();
 				boolean hadSavedLocations = toUpload.size() > 0;
-				toUpload.addAll(newLocs);
+				toUpload.addAll(locs);
 				if (server.uploadLocations(toUpload)) {
-					newLocs.clear();
 					if (hadSavedLocations) {
 						db.clearSavedLocations();
 					}
 				} else {
-					saveNewLocsToDB();
+					saveLocationsToDB(locs);
 				}
 			}
 		}
 		
-		private void saveNewLocsToDB() {
-			for (Location l : newLocs) {
+		private void saveLocationsToDB(ArrayList<Location> locs) {
+			for (Location l : locs) {
 				db.saveLocation(l);
 			}
-			newLocs.clear();
 		}
 	}
 }
