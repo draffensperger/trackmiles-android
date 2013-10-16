@@ -1,7 +1,7 @@
 package org.financetool.financetooltracker;
 
 import java.util.ArrayList;
-import java.util.Collection;
+import java.util.ArrayList;
 import android.content.Context;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
@@ -42,11 +42,23 @@ public class DBUtil {
 		}		
 	}
 	
-	public Collection<Location> getSavedLocations() {
-		ArrayList<Location> locs = new ArrayList<Location>();
-		Cursor c = db.rawQuery(
+	public ArrayList<Location> getSortedLocationsBatch(int batchSize) { 
+		return getLocationsForQuery(
+				"SELECT provider,time,latitude,longitude,altitude," +
+				"accuracy,speed,bearing FROM locations " +
+				"ORDER BY time LIMIT ?",
+				new String[] {Integer.toString(batchSize)});
+	}
+	
+	public ArrayList<Location> getSavedLocations() {
+		return getLocationsForQuery(
 			"SELECT provider,time,latitude,longitude,altitude," +
-			"accuracy,speed,bearing FROM locations", null);
+			"accuracy,speed,bearing FROM locations", null);		
+	}
+	
+	private ArrayList<Location> getLocationsForQuery(String sql, String[] args) {
+		ArrayList<Location> locs = new ArrayList<Location>();
+		Cursor c = db.rawQuery(sql, args);
 		if (c != null) {
 			while (c.moveToNext()) {
 				int i = 0;
@@ -62,11 +74,16 @@ public class DBUtil {
 			}
 			c.close();
 		}
-		return locs;
+		return locs;	
+	}
+	
+	public void clearLocationsUpTo(long maxTime) {
+		db.execSQL("DELETE FROM LOCATIONS WHERE time <= ?", 
+					new String[] {Long.toString(maxTime)});
 	}
 	
 	public void clearSavedLocations() {						
-		db.execSQL("DELETE FROM LOCATIONS");		
+		db.execSQL("DELETE FROM LOCATIONS");	
 	}
 	
 	public void closeDB() {

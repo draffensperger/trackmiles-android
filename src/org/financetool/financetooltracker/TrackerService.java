@@ -24,10 +24,10 @@ public class TrackerService extends Service implements LocationListener {
 	private static final long MIN_TIME_IN_MS_BTW_LOCS = 5 * 1000;	
 	private static final float MIN_DIST_IN_M_BTW_LOCS = 5.0f;
 	
-	// Save in batches of 32 locations or after 20 minutes since the last 
+	// Upload in batches of 32 locations or after 20 minutes since the last 
 	// location received.
-	private static final int SAVE_BATCH_SIZE = 32;
-	public static final long SAVE_IF_NO_LOC_RCVD_FOR_TIME_MS = 20 * 60 * 1000;
+	private static final int UPLOAD_BATCH_SIZE = 1;
+	public static final long UPLOAD_IF_NO_LOC_RCVD_FOR_TIME_MS = 20 * 60 * 1000;
 	
 	public static String TAG = MainActivity.TAG; 
 	
@@ -38,18 +38,18 @@ public class TrackerService extends Service implements LocationListener {
 	
 	private Location lastLocation;
 	private LinkedBlockingDeque<Location> locationsToSave;
-	private static final Location SAVE_NOW_SIGNAL = new Location("");
+	private static final Location UPLOAD_NOW_SIGNAL = new Location("");
 	private boolean keepWaitingForLocationsToSave = true;
 
 	public static void bindAndStartIfUnstarted(Context c, ServiceConnection sc) {	
-		c.bindService(start(c), sc, 0);
+		//c.bindService(start(c), sc, BIND_AUTO_CREATE);
 	}
 	
 	public static Intent start(Context c) {
 		Intent intent = new Intent(c, TrackerService.class);
-		if (!isRunning(c)) {
+		//if (!isRunning(c)) {
 			c.startService(intent);
-		}
+		//}
 		return intent;
 	}
 	
@@ -95,7 +95,7 @@ public class TrackerService extends Service implements LocationListener {
 	
 	private void sendThreadDoneSignal() {
 		keepWaitingForLocationsToSave = false;
-		locationsToSave.offer(SAVE_NOW_SIGNAL);
+		locationsToSave.offer(UPLOAD_NOW_SIGNAL);
 	}
 	
 	private boolean shouldRecordLocation(Location l) {
@@ -157,61 +157,68 @@ public class TrackerService extends Service implements LocationListener {
 		return binder;
 	}
 	
-	private class SaveAndUploadThread extends Thread {		
+	private class SaveAndUploadThread extends Thread {
+		int numSavedSinceLastUpload = 0;
+		
 		@Override
 		public void run() {
 			while (keepWaitingForLocationsToSave) {
-				uploadOrSaveLocations(collectLocationsToSave());											
+				// Save every location in case the app gets shut down or 
+				// phone powered off, but we have a local cache as well. 
+				boolean uploadNow = saveNextLocationAndShouldUploadNow();
+				if (uploadNow || numSavedSinceLastUpload >= UPLOAD_BATCH_SIZE) {
+					if (uploadLocations()) {
+						numSavedSinceLastUpload = 0;
+					}
+				}
 			}		
 			db.closeDB();
 		}
 		
-		private ArrayList<Location> collectLocationsToSave() {
-			ArrayList<Location> locs = new ArrayList<Location>();
-			do {				
-				try {
-					Location l = locationsToSave.poll(SAVE_IF_NO_LOC_RCVD_FOR_TIME_MS, 
-							TimeUnit.MILLISECONDS);
-					
-					if (l == null) {
-						// If we have passed the maximum time between uploads
-						// then return if we have locations to save, otherwise
-						// keep waiting.
-						if (!locs.isEmpty()) return locs;
-					} else if (l == SAVE_NOW_SIGNAL) {
-						return locs;
-					} else {
-						locs.add(l);
-					}
-				} catch (InterruptedException e) {
-					Log.e(TAG, e.toString(), e);
-				}
-			} while (locs.size() < SAVE_BATCH_SIZE);
-			
-			return locs;
-		}		
-
-		private void uploadOrSaveLocations(ArrayList<Location> locs) {
-			if (!server.isNetworkAvailable()) {
-				saveLocationsToDB(locs);
-			} else {				
-				Collection<Location> toUpload = db.getSavedLocations();
-				boolean hadSavedLocations = toUpload.size() > 0;
-				toUpload.addAll(locs);
-				if (server.uploadLocations(toUpload)) {
-					if (hadSavedLocations) {
-						db.clearSavedLocations();
-					}
-				} else {
-					saveLocationsToDB(locs);
+		private boolean uploadLocations() {
+			while (db.getNumSavedLocations() > 0) {
+				// There is a backlog of locations to upload
+				ArrayList<Location> locs 
+					= db.getSortedLocationsBatch(UPLOAD_BATCH_SIZE);
+				
+				if (!uploadSortedLocations(locs)) {
+					return false;
 				}
 			}
+			return true;			
 		}
 		
-		private void saveLocationsToDB(ArrayList<Location> locs) {
-			for (Location l : locs) {
-				db.saveLocation(l);
+		private boolean saveNextLocationAndShouldUploadNow() {				
+			try {
+				Location l = locationsToSave.poll(
+						UPLOAD_IF_NO_LOC_RCVD_FOR_TIME_MS, 
+						TimeUnit.MILLISECONDS);
+				
+				// null in this case means the poll timed out
+				if (l == null || l == UPLOAD_NOW_SIGNAL) {
+					return true;
+				} else {					
+					db.saveLocation(l);
+					numSavedSinceLastUpload++;
+					return false;
+				}
+			} catch (InterruptedException e) {
+				Log.e(TAG, e.toString(), e);
+				return false;
+			}		
+		}		
+
+		private boolean uploadSortedLocations(ArrayList<Location> locs) {			
+			if (!server.isNetworkAvailable()) {
+				return false;
+			} else {				
+				if (server.uploadLocations(locs)) {					
+					db.clearLocationsUpTo(locs.get(locs.size() - 1).getTime());
+					return true;
+				} else {
+					return false;
+				}
 			}
-		}
+		}				
 	}
 }
