@@ -26,7 +26,8 @@ public class TrackerService extends Service implements LocationListener {
 	
 	// Upload in batches of 32 locations or after 20 minutes since the last 
 	// location received.
-	private static final int UPLOAD_BATCH_SIZE = 1;
+	private static final int NEW_UPLOAD_BATCH_SIZE = 32;
+	private static final int BACKLOG_UPLOAD_BATCH_SIZE = 64;
 	public static final long UPLOAD_IF_NO_LOC_RCVD_FOR_TIME_MS = 20 * 60 * 1000;
 	
 	public static String TAG = MainActivity.TAG; 
@@ -158,17 +159,17 @@ public class TrackerService extends Service implements LocationListener {
 	}
 	
 	private class SaveAndUploadThread extends Thread {
-		int numSavedSinceLastUpload = 0;
+		int numSavedSinceUpload = 0;
 		
 		@Override
 		public void run() {
 			while (keepWaitingForLocationsToSave) {
-				// Save every location in case the app gets shut down or 
-				// phone powered off, but we have a local cache as well. 
+				// Save every location.to a local database in case the app gets 
+				// shut down or phone powered off. 
 				boolean uploadNow = saveNextLocationAndShouldUploadNow();
-				if (uploadNow || numSavedSinceLastUpload >= UPLOAD_BATCH_SIZE) {
+				if (uploadNow) {
 					if (uploadLocations()) {
-						numSavedSinceLastUpload = 0;
+						numSavedSinceUpload = 0;
 					}
 				}
 			}		
@@ -179,7 +180,7 @@ public class TrackerService extends Service implements LocationListener {
 			while (db.getNumSavedLocations() > 0) {
 				// There is a backlog of locations to upload
 				ArrayList<Location> locs 
-					= db.getSortedLocationsBatch(UPLOAD_BATCH_SIZE);
+					= db.getSortedLocationsBatch(BACKLOG_UPLOAD_BATCH_SIZE);
 				
 				if (!uploadSortedLocations(locs)) {
 					return false;
@@ -199,8 +200,9 @@ public class TrackerService extends Service implements LocationListener {
 					return true;
 				} else {					
 					db.saveLocation(l);
-					numSavedSinceLastUpload++;
-					return false;
+					numSavedSinceUpload++;
+					return numSavedSinceUpload >= NEW_UPLOAD_BATCH_SIZE ||
+						db.getNumSavedLocations() >= BACKLOG_UPLOAD_BATCH_SIZE;
 				}
 			} catch (InterruptedException e) {
 				Log.e(TAG, e.toString(), e);

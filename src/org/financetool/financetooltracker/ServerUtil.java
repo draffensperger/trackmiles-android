@@ -1,7 +1,31 @@
 package org.financetool.financetooltracker;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.io.StringWriter;
+import java.net.URL;
+import java.security.KeyStore;
+import java.security.cert.CertificateException;
+import java.security.cert.CertificateFactory;
+import java.security.cert.Certificate;
+import java.security.cert.X509Certificate;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSocketFactory;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.TrustManagerFactory;
+import javax.net.ssl.X509TrustManager;
+
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
 import org.apache.http.client.ClientProtocolException;
@@ -23,17 +47,22 @@ import android.net.NetworkInfo;
 import android.util.Log;
 
 public class ServerUtil {
-	public static String TAG = MainActivity.TAG; 
+	public static String TAG = MainActivity.TAG;
+		
+	// The StartCom certificate isn't supported on older android versions
+	private static final String[] CUSTOM_CA_ASSET_PATHS 
+		= new String[] {"startcom.ca.crt", "startcom.sub.class1.server.ca.crt"}; 
 	
 	private PreferenceUtil prefs; 
 	private String apiBaseURL;
 	private Context context;
 	private JSONUtil jsonUtil;
+	private SSLSocketFactory sslSocketFactory;
 	
 	public ServerUtil(Context context) {
 		prefs = new PreferenceUtil(context);
 		apiBaseURL = context.getString(R.string.api_base_url);
-		jsonUtil= new JSONUtil();
+		jsonUtil= new JSONUtil();		
 		this.context = context;
 	}
 	
@@ -57,6 +86,52 @@ public class ServerUtil {
 		return callAPI(cmd, arg, true);
 	}
 	
+	private SSLSocketFactory getSSLSocketFactory() {		
+		if (sslSocketFactory == null) {
+			sslSocketFactory = sslSocketFactoryWithCustomCA(CUSTOM_CA_ASSET_PATHS);
+		}
+		return sslSocketFactory;
+	}
+	
+	private Certificate getCertForAssetPath(String assetPath) 
+			throws CertificateException, IOException {
+		CertificateFactory cf = CertificateFactory.getInstance("X.509");
+		InputStream caInput = new BufferedInputStream(
+				context.getAssets().open(assetPath));
+		Certificate ca = cf.generateCertificate(caInput);
+		caInput.close();
+		return ca;
+	}
+	
+	// From: http://developer.android.com/training/articles/security-ssl.html#UnknownCa
+	// Useful link: 
+	private SSLSocketFactory sslSocketFactoryWithCustomCA(String[] certPaths) {				
+		SSLSocketFactory socketFactory = null;		
+		try {						
+			// Create a KeyStore containing our trusted CAs
+			String keyStoreType = KeyStore.getDefaultType();
+			KeyStore keyStore = KeyStore.getInstance(keyStoreType);
+			keyStore.load(null, null);
+			for (int i = 0; i < certPaths.length; i++) {
+				keyStore.setCertificateEntry("ca", getCertForAssetPath(certPaths[i]));
+			}
+
+			// Create a TrustManager that trusts the CAs in our KeyStore
+			String tmfAlgorithm = TrustManagerFactory.getDefaultAlgorithm();
+			TrustManagerFactory tmfCustom = TrustManagerFactory.getInstance(tmfAlgorithm);
+			tmfCustom.init(keyStore);												
+
+			// Create an SSLContext that uses our TrustManager
+			SSLContext sslContext = SSLContext.getInstance("TLS");
+			sslContext.init(null, tmfCustom.getTrustManagers(), null);
+
+			socketFactory = sslContext.getSocketFactory();
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	    return socketFactory;		
+	}
+	
 	private JSONObject callAPI(String cmd, JSONObject arg, boolean retryIfUnauthorized) {
 		if (!isNetworkAvailable()) {
 			return null;
@@ -74,29 +149,37 @@ public class ServerUtil {
 			}
 		}
 										
-		try {									
-			arg.put("google_token", authToken);										
+		try {													
+			arg.put("google_token", authToken);
 			
-			DefaultHttpClient client = new DefaultHttpClient();
-			HttpPost post = new HttpPost(apiBaseURL + cmd);
+			HttpsURLConnection http = (HttpsURLConnection) 
+					((new URL(apiBaseURL + cmd).openConnection()));
+			http.setDoOutput(true);
+			http.setRequestProperty("Content-Type", "application/json");
+			http.setRequestMethod("POST");
+			http.setInstanceFollowRedirects(false);
+			http.setSSLSocketFactory(getSSLSocketFactory());
+			http.connect();				
 			
-			post.setEntity(new ByteArrayEntity(arg.toString().getBytes("UTF8")));
-			post.setHeader("Content-Type", "application/json");
-			HttpResponse response = client.execute(post);	
-			int code = response.getStatusLine().getStatusCode();
-			String result = EntityUtils.toString(response.getEntity());
-			if (code == HttpStatus.SC_OK) {																
-				return new JSONObject(result);						
-			} else if (code == HttpStatus.SC_UNAUTHORIZED) {
+			BufferedOutputStream out 
+				= new BufferedOutputStream(http.getOutputStream());
+			out.write(arg.toString().getBytes("UTF8"));
+			out.close();
+			
+			int code = http.getResponseCode();
+			if (code == 200) {				
+				String response = readFullyToString(http.getInputStream());
+				return new JSONObject(response);
+			} else if (code == 401) {
 				if (requestNewAuthToken() != null && retryIfUnauthorized) {
 					return callAPI(cmd, arg, false);
 				}
 			} else {
 				String msg = "Bad server response, code: " + code + 
-						", response: " + result + ", cmd: " + cmd + 
+						"cmd: " + cmd + 
 						", arg: " + arg.toString();
 				Log.e(TAG, msg);
-			}								
+			}			
 		} catch (JSONException e) {
 			Log.e(TAG, e.toString(), e);
 		} catch (ClientProtocolException e) {
@@ -106,6 +189,18 @@ public class ServerUtil {
 		}
 		
 		return null;
+	}	
+	
+	// From: http://stackoverflow.com/questions/309424/read-convert-an-inputstream-to-a-string
+	public static String readFullyToString(InputStream in) throws IOException
+	{
+	    BufferedReader reader = new BufferedReader(new InputStreamReader(in));
+	    StringBuilder out = new StringBuilder();
+	    String line;
+	    while ((line = reader.readLine()) != null) {
+	        out.append(line);
+	    }
+	    return out.toString();
 	}
 	
 	public boolean isNetworkAvailable() {
