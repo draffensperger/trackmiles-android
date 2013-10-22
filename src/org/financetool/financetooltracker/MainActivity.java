@@ -107,7 +107,13 @@ public class MainActivity extends PreferenceActivity implements
 	
 	protected void onStop() {
 		super.onStop();
-		finish();
+		
+		// If the user hasn't logged in yet, the app may be stopped 
+		// because they are selecting an account in which case we shouldn't
+		// finish the app. Otherwise, finish the app when the user clicks away.
+		if (prefs.getAuthToken() != null) {
+			finish();
+		}
 	}
 	
 	@Override

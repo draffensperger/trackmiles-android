@@ -42,14 +42,14 @@ public class TrackerService extends Service implements LocationListener {
 	private boolean keepWaitingForLocationsToSave = true;
 
 	public static void bindAndStartIfUnstarted(Context c, ServiceConnection sc) {	
-		//c.bindService(start(c), sc, BIND_AUTO_CREATE);
+		c.bindService(start(c), sc, 0);
 	}
 	
 	public static Intent start(Context c) {
 		Intent intent = new Intent(c, TrackerService.class);
-		//if (!isRunning(c)) {
+		if (!isRunning(c)) {
 			c.startService(intent);
-		//}
+		}
 		return intent;
 	}
 	
