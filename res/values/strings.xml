@@ -26,7 +26,7 @@
 
 <string name="last_uploaded_default">Synced locations at [never]</string>
 
-<string name="ui_sync_button_label">Sync Now</string>
+<string name="ui_sync_button_label">Upload Locations Now</string>
 
 <string name="ui_info_label"><a href="https://trackmiles.herokuapp.com">Track Miles Site</a> location recorder</string>
 

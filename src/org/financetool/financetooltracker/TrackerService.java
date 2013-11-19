@@ -94,9 +94,13 @@ public class TrackerService extends Service implements LocationListener {
 		lm.removeUpdates(this);
 	}
 	
+	private void uploadNow() {
+		locationsToSave.offer(UPLOAD_NOW_SIGNAL);
+	}
+	
 	private void sendThreadDoneSignal() {
 		keepWaitingForLocationsToSave = false;
-		locationsToSave.offer(UPLOAD_NOW_SIGNAL);
+		uploadNow();
 	}
 	
 	private boolean shouldRecordLocation(Location l) {
@@ -146,7 +150,8 @@ public class TrackerService extends Service implements LocationListener {
 	private final IBinder binder = new LocalBinder();
 	
 	public class LocalBinder extends Binder {
-		public void uploadNow() {	
+		public void uploadNow() {
+			TrackerService.this.uploadNow();
 		}
 		public void updateTrackingFromPrefs() {
 			TrackerService.this.updateTrackingFromPrefs();
