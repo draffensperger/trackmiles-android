@@ -158,7 +158,11 @@ public class ServerUtil {
 			http.setRequestProperty("Content-Type", "application/json");
 			http.setRequestMethod("POST");
 			http.setInstanceFollowRedirects(false);
-			http.setSSLSocketFactory(getSSLSocketFactory());
+			
+			// We fixed the SSL certificate so that we don't need a 
+			// custom SSL socket factory anymore.
+			//http.setSSLSocketFactory(getSSLSocketFactory());
+			
 			http.connect();				
 			
 			BufferedOutputStream out 
